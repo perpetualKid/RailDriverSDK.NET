@@ -1,0 +1,38 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31205.134
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{7C65CA6E-6E6D-49DE-9939-8EC263E5F4D2}"
+	ProjectSection(SolutionItems) = preProject
+		..\.editorconfig = ..\.editorconfig
+		Directory.Build.props = Directory.Build.props
+		..\version.json = ..\version.json
+	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RailDriver", "RailDriver\RailDriver.csproj", "{7E791756-32E6-46A3-B50A-DF17F586D787}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RailDriver Sample", "RailDriver Sample\RailDriver Sample.csproj", "{B69B26C4-A016-4B66-BBFE-1DC051D8BC24}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7E791756-32E6-46A3-B50A-DF17F586D787}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7E791756-32E6-46A3-B50A-DF17F586D787}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7E791756-32E6-46A3-B50A-DF17F586D787}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7E791756-32E6-46A3-B50A-DF17F586D787}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B69B26C4-A016-4B66-BBFE-1DC051D8BC24}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B69B26C4-A016-4B66-BBFE-1DC051D8BC24}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B69B26C4-A016-4B66-BBFE-1DC051D8BC24}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B69B26C4-A016-4B66-BBFE-1DC051D8BC24}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {37DD0C29-B807-4D7B-8C4D-319A0A0F101A}
+	EndGlobalSection
+EndGlobal
