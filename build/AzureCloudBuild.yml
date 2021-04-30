@@ -95,5 +95,5 @@ steps:
     command: 'push'
     packagesToPush: '**/*.nupkg;**/*.snupkg'
     nuGetFeedType: 'internal'
-    publishVstsFeed: 'c9087856-dbda-479c-b5d7-4b7ffc371f3b/f16767f8-755d-494c-a7f1-4e275a617133''
+    publishVstsFeed: 'c9087856-dbda-479c-b5d7-4b7ffc371f3b/f16767f8-755d-494c-a7f1-4e275a617133'
     publishPackageMetadata: true # Optional
