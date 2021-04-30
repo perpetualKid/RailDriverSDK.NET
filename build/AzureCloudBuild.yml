@@ -97,3 +97,12 @@ steps:
     nuGetFeedType: 'internal'
     publishVstsFeed: 'c9087856-dbda-479c-b5d7-4b7ffc371f3b/f16767f8-755d-494c-a7f1-4e275a617133'
     publishPackageMetadata: true # Optional
+
+- task: NuGetCommand@2
+  displayName: 'dotnet push Nuget'
+  condition: and(succeeded(), and(ne(variables['Build.SourceBranch'], 'refs/heads/main'), eq(variables['NBGV_PRERELEASEVERSION'], '')))
+  inputs:
+    command: 'push'
+    packagesToPush: '**/*.nupkg'
+    nuGetFeedType: 'external'
+    publishFeedCredentials: 'Nuget RailDriver Feed'
