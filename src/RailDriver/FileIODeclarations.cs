@@ -5,10 +5,10 @@ using Microsoft.Win32.SafeHandles;
 
 namespace RailDriver
 {
-    class FileIOApiDeclarations
+    internal class FileIOApiDeclarations
     {
 
-        // API declarations relating to file I/O. cimbom
+        // API declarations relating to file I/O.
 
         // ******************************************************************************
         // API constants
@@ -32,33 +32,22 @@ namespace RailDriver
         // ******************************************************************************
         // Structures and classes for API calls, listed alphabetically
         // ******************************************************************************
-        /*	typedef struct _OVERLAPPED {
-      ULONG_PTR Internal;
-      ULONG_PTR InternalHigh;
-      union {
-        struct {
-          DWORD Offset;
-          DWORD OffsetHigh;
-        };
-        PVOID  Pointer;
-      };
-      HANDLE    hEvent;
-    } OVERLAPPED, *LPOVERLAPPED;*/
+
         [StructLayout(LayoutKind.Sequential)]
         public struct OVERLAPPED
         {
-            public IntPtr Internal; //type changed by Onur for 64-bit compatability
-            public IntPtr InternalHigh; //type changed by Dan Simkin for 64-bit compatability
-            public Int32 Offset;
-            public Int32 OffsetHigh;//type changed by Dan Simkin for 64-bit compatability
-            public IntPtr hEvent; //type changed by Onur for 64-bit compatability
+            public IntPtr Internal;
+            public IntPtr InternalHigh;
+            public int Offset;
+            public int OffsetHigh;
+            public IntPtr hEvent;
         }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct SECURITY_ATTRIBUTES
         {
             public int nLength;
-            public IntPtr lpSecurityDescriptor;//onur 07/27/09
+            public IntPtr lpSecurityDescriptor;
             public int bInheritHandle;
         }
 
@@ -67,38 +56,34 @@ namespace RailDriver
         // ******************************************************************************
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        static public extern int CancelIo(SafeFileHandle hFile);
+        public static extern int CancelIo(SafeFileHandle hFile);
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        static public extern int CloseHandle(IntPtr hObject);
+        public static extern int CloseHandle(IntPtr hObject);
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-        static public extern IntPtr CreateEvent(ref SECURITY_ATTRIBUTES SecurityAttributes, int bManualReset, int bInitialState, string lpName); //type changed by Onur for 64-bit compatability
+        public static extern IntPtr CreateEvent(ref SECURITY_ATTRIBUTES SecurityAttributes, int bManualReset, int bInitialState, string lpName);
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-        static public extern int SetEvent(IntPtr eEvent);
+        public static extern int SetEvent(IntPtr eEvent);
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-        static public extern int ResetEvent(IntPtr eEvent);
+        public static extern int ResetEvent(IntPtr eEvent);
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-        // static public extern SafeFileHandle
-        static public extern IntPtr
-      CreateFile(string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, int dwCreationDisposition, uint dwFlagsAndAttributes, int hTemplateFile); //type changed by Onur for 64-bit compatability
-                                                                                                                                                                                   //     CreateFile(string lpFileName, uint dwDesiredAccess, uint dwShareMode,  SECURITY_ATTRIBUTES SecurityAttributes, int dwCreationDisposition, uint dwFlagsAndAttributes, int hTemplateFile); //type changed by Onur for 64-bit compatability
+        public static extern IntPtr CreateFile(string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, int dwCreationDisposition, uint dwFlagsAndAttributes, int hTemplateFile); 
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        static public extern int ReadFile(SafeFileHandle hFile, IntPtr lpBuffer, int nNumberOfBytesToRead, ref int lpNumberOfBytesRead, ref OVERLAPPED lpOverlapped); //type changed by Onur for 64-bit compatability
-                                                                                                                                                                      //  static public extern int ReadFile(IntPtr hFile, IntPtr lpBuffer, int nNumberOfBytesToRead, ref int lpNumberOfBytesRead, ref OVERLAPPED lpOverlapped); //type changed by Onur for 64-bit compatability
+        public static extern int ReadFile(SafeFileHandle hFile, IntPtr lpBuffer, int nNumberOfBytesToRead, ref int lpNumberOfBytesRead, ref OVERLAPPED lpOverlapped);
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        static public extern int WaitForSingleObject(IntPtr hHandle, int dwMilliseconds); //type changed by Onur for 64-bit compatability
+        public static extern int WaitForSingleObject(IntPtr hHandle, int dwMilliseconds);
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        static public extern int WriteFile(SafeFileHandle hFile, IntPtr lpBuffer, int nNumberOfBytesToWrite, ref int lpNumberOfBytesWritten, ref OVERLAPPED lpOverlapped); //type changed by Onur for 64-bit compatability
+        public static extern int WriteFile(SafeFileHandle hFile, IntPtr lpBuffer, int nNumberOfBytesToWrite, ref int lpNumberOfBytesWritten, ref OVERLAPPED lpOverlapped);
 
         [DllImport("kernel32.dll", SetLastError = true)]
-        static public extern int GetOverlappedResult(SafeFileHandle hFile, ref OVERLAPPED lpOverlapped, ref int lpNumberOfBytesTransferred, int bWait);//type changed by Onur for 64-bit compatability
+        public static extern int GetOverlappedResult(SafeFileHandle hFile, ref OVERLAPPED lpOverlapped, ref int lpNumberOfBytesTransferred, int bWait);
 
     }
 

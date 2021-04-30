@@ -5,10 +5,10 @@ using Microsoft.Win32.SafeHandles;
 
 namespace RailDriver
 {
-    sealed class HidApiDeclarations
+    internal sealed class HidApiDeclarations
     {
 
-        // API Declarations for communicating with HID-class devices. cimbom
+        // API Declarations for communicating with HID-class devices. 
 
         // ******************************************************************************
         // API constants
@@ -28,31 +28,31 @@ namespace RailDriver
         public struct HIDD_ATTRIBUTES
         {
             public int Size;
-            public short VendorID;
-            public short ProductID;
-            public short VersionNumber;
+            public ushort VendorID;
+            public ushort ProductID;
+            public ushort VersionNumber;
         }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct HIDP_CAPS
         {
-            public short Usage;
-            public short UsagePage;
-            public short InputReportByteLength;
-            public short OutputReportByteLength;
-            public short FeatureReportByteLength;
+            public ushort Usage;
+            public ushort UsagePage;
+            public ushort InputReportByteLength;
+            public ushort OutputReportByteLength;
+            public ushort FeatureReportByteLength;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 17)]
-            public short[] Reserved;
-            public short NumberLinkCollectionNodes;
-            public short NumberInputButtonCaps;
-            public short NumberInputValueCaps;
-            public short NumberInputDataIndices;
-            public short NumberOutputButtonCaps;
-            public short NumberOutputValueCaps;
-            public short NumberOutputDataIndices;
-            public short NumberFeatureButtonCaps;
-            public short NumberFeatureValueCaps;
-            public short NumberFeatureDataIndices;
+            public ushort[] Reserved;
+            public ushort NumberLinkCollectionNodes;
+            public ushort NumberInputButtonCaps;
+            public ushort NumberInputValueCaps;
+            public ushort NumberInputDataIndices;
+            public ushort NumberOutputButtonCaps;
+            public ushort NumberOutputValueCaps;
+            public ushort NumberOutputDataIndices;
+            public ushort NumberFeatureButtonCaps;
+            public ushort NumberFeatureValueCaps;
+            public ushort NumberFeatureDataIndices;
 
         }
 
@@ -102,49 +102,49 @@ namespace RailDriver
         // ******************************************************************************
 
         [DllImport("hid.dll")]
-        static public extern bool HidD_FlushQueue(SafeFileHandle HidDeviceObject);
+        public static extern bool HidD_FlushQueue(SafeFileHandle HidDeviceObject);
 
         [DllImport("hid.dll")]
-        static public extern bool HidD_FreePreparsedData(IntPtr PreparsedData);
+        public static extern bool HidD_FreePreparsedData(IntPtr PreparsedData);
 
         [DllImport("hid.dll")]
-        static public extern int HidD_GetAttributes(SafeFileHandle HidDeviceObject, ref HIDD_ATTRIBUTES Attributes); //type changed by Onur for 64-bit compatability
+        public static extern int HidD_GetAttributes(SafeFileHandle HidDeviceObject, ref HIDD_ATTRIBUTES Attributes); //type changed by Onur for 64-bit compatability
 
         [DllImport("hid.dll")]
-        static public extern bool HidD_GetFeature(SafeFileHandle HidDeviceObject, ref byte lpReportBuffer, int ReportBufferLength);
+        public static extern bool HidD_GetFeature(SafeFileHandle HidDeviceObject, ref byte lpReportBuffer, int ReportBufferLength);
 
         [DllImport("hid.dll")]
-        static public extern bool HidD_GetInputReport(SafeFileHandle HidDeviceObject, ref byte lpReportBuffer, int ReportBufferLength);
+        public static extern bool HidD_GetInputReport(SafeFileHandle HidDeviceObject, ref byte lpReportBuffer, int ReportBufferLength);
 
         [DllImport("hid.dll")]
-        static public extern void HidD_GetHidGuid(ref System.Guid HidGuid);
+        public static extern void HidD_GetHidGuid(ref Guid HidGuid);
 
         [DllImport("hid.dll")]
-        static public extern int HidD_GetManufacturerString(SafeFileHandle HidDeviceObject, ref byte sss, int StringSize);
+        public static extern int HidD_GetManufacturerString(SafeFileHandle HidDeviceObject, ref byte sss, int StringSize);
 
         [DllImport("hid.dll")]
-        static public extern bool HidD_GetNumInputBuffers(SafeFileHandle HidDeviceObject, ref int NumberBuffers);
+        public static extern bool HidD_GetNumInputBuffers(SafeFileHandle HidDeviceObject, ref int NumberBuffers);
 
         [DllImport("hid.dll")]
-        static public extern bool HidD_GetPreparsedData(SafeFileHandle HidDeviceObject, ref IntPtr PreparsedData); //type changed by Onur for 64-bit compatability
+        public static extern bool HidD_GetPreparsedData(SafeFileHandle HidDeviceObject, ref IntPtr PreparsedData); //type changed by Onur for 64-bit compatability
 
         [DllImport("hid.dll")]
-        static public extern int HidD_GetProductString(SafeFileHandle HidDeviceObject, ref byte sss, int StringSize);
+        public static extern int HidD_GetProductString(SafeFileHandle HidDeviceObject, ref byte sss, int StringSize);
 
         [DllImport("hid.dll")]
-        static public extern bool HidD_SetFeature(SafeFileHandle HidDeviceObject, ref byte lpReportBuffer, int ReportBufferLength);
+        public static extern bool HidD_SetFeature(SafeFileHandle HidDeviceObject, ref byte lpReportBuffer, int ReportBufferLength);
 
         [DllImport("hid.dll")]
-        static public extern bool HidD_SetNumInputBuffers(SafeFileHandle HidDeviceObject, int NumberBuffers);
+        public static extern bool HidD_SetNumInputBuffers(SafeFileHandle HidDeviceObject, int NumberBuffers);
 
         [DllImport("hid.dll")]
-        static public extern bool HidD_SetOutputReport(SafeFileHandle HidDeviceObject, ref byte lpReportBuffer, int ReportBufferLength);
+        public static extern bool HidD_SetOutputReport(SafeFileHandle HidDeviceObject, ref byte lpReportBuffer, int ReportBufferLength);
 
         [DllImport("hid.dll")]
-        static public extern int HidP_GetCaps(IntPtr PreparsedData, ref HIDP_CAPS Capabilities);
+        public static extern int HidP_GetCaps(IntPtr PreparsedData, ref HIDP_CAPS Capabilities);
 
         [DllImport("hid.dll")]
-        static public extern int HidP_GetValueCaps(short ReportType, ref byte ValueCaps, ref short ValueCapsLength, IntPtr PreparsedData);
+        public static extern int HidP_GetValueCaps(short ReportType, ref byte ValueCaps, ref short ValueCapsLength, IntPtr PreparsedData);
 
     }
 

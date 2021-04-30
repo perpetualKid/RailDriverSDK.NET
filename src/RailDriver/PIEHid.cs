@@ -7,37 +7,16 @@ using Microsoft.Win32.SafeHandles;
 
 namespace RailDriver
 {
-    public interface PIEDataHandler
-    {
-        void HandlePIEHidData(Byte[] data, PIEDevice sourceDevice, int error);
-    }
-
-    public interface PIEErrorHandler
-    {
-        void HandlePIEHidError(PIEDevice sourceDevices, int error);
-    }
-    //4/21/15 Patti replace Int32 with Int64 
     public class PIEDevice
     {
-        private String path;
-        private Int64 vid;
-        private Int64 pid;
-        private Int64 version;
-        private Int64 hidUsage;
-        private Int64 hidUsagePage;
         private bool connected = false;
-        public bool suppressDuplicateReports = false;
-        private int inputReportSize;
-        private int outputReportSize;
-        private RngBuf2 writeRing;
-        private RngBuf2 readRing;
+        private RingBuffer writeRing;
+        private RingBuffer readRing;
         private SafeFileHandle readFileHandle;
         private SafeFileHandle writeFileHandle;
-        private PIEDataHandler registeredDataHandler = null;
-        private PIEErrorHandler registeredErrorHandler = null;
-        public bool callNever = false;
+        private IDataHandler registeredDataHandler = null;
+        private IErrorHandler registeredErrorHandler = null;
         private IntPtr readFileH;
-
 
         private int errCodeR = 0;
         private int errCodeRE = 0;
@@ -45,7 +24,7 @@ namespace RailDriver
         private int errCodeWE = 0;
         private bool holdDataThreadOpen = false;
         private bool holdErrorThreadOpen = false;
-        FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttrUnused = new FileIOApiDeclarations.SECURITY_ATTRIBUTES();
+        private FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttrUnused = new FileIOApiDeclarations.SECURITY_ATTRIBUTES();
         private IntPtr readEvent;
         private IntPtr writeEvent;
 
@@ -57,88 +36,54 @@ namespace RailDriver
         private bool writeThreadActive = false;
         private bool dataThreadActive = false;
         private bool errorThreadActive = false;
+        private static readonly ushort[] convertToSplatModeSausages = { 7, 5, 4, 3, 2, 1 };
+        private static readonly ushort[] ledSausages = { 7, 3, 1, 6, 4, 2 };
 
-        private String manufacturersString;
-        private String productString;
+        public string Path { get; }
 
-        private const int READ_BUFFER_COUNT = 512;
-        private const int WRITE_BUFFER_COUNT = 512;
+        public int Vid { get; }
 
-        protected static ushort[] convertToSplatModeSausages = { 7, 5, 4, 3, 2, 1 };
-        protected static ushort[] ledSausages = { 7, 3, 1, 6, 4, 2 };
+        public int Pid { get; }
 
-        public String Path
+        public int Version { get; }
+
+        public int HidUsage { get; }
+
+        public int HidUsagePage { get; }
+
+        public int ReadLength { get; }
+
+        public int WriteLength { get; }
+
+        public string ManufacturersString { get; }
+
+        public string ProductString { get; }
+
+        public bool SuppressDuplicateReports { get; set; }
+
+        public bool CallNever { get; set; }
+
+        public PIEDevice(string path, int vid, int pid, int version, int hidUsage, int hidUsagePage, int readSize, int writeSize, string manufacturersString, string productString)
         {
-            get { return path; }
-        }
-        public Int64 Vid
-        {
-            get { return vid; }
-        }
-        public Int64 Pid
-        {
-            get { return pid; }
-        }
-        public Int64 Version
-        {
-            get { return version; }
-        }
-        public Int64 HidUsage
-        {
-            get { return hidUsage; }
-        }
-        public Int64 HidUsagePage
-        {
-            get { return hidUsagePage; }
-        }
-        public Int64 ReadLength
-        {
-            get { return inputReportSize; }
-        }
-        public Int64 WriteLength
-        {
-            get { return outputReportSize; }
-        }
-        public String ManufacturersString
-        {
-            get { return manufacturersString; }
-        }
-        public String ProductString
-        {
-            get { return productString; }
-        }
-        /*	public bool Connected
-            {
-                get { return connected; }
-            }
-            public bool SuppressDuplicateReports
-            {
-                get { return suppressDuplicateReports; }
-            }
-    */
-        public PIEDevice(String path, Int64 vid, Int64 pid, Int64 version,
-            Int64 hidUsage, Int64 hidUsagePage, Int64 readSize, Int64 writeSize,
-            String ManufacturersString, String ProductString)
-        {
-            this.path = path;
-            this.vid = vid;
-            this.pid = pid;
-            this.version = version;
-            this.hidUsage = hidUsage;
-            this.hidUsagePage = hidUsagePage;
-            this.inputReportSize = (int)readSize; //patti
-            this.outputReportSize = (int)writeSize; //patti
-            this.manufacturersString = ManufacturersString;
-            this.productString = ProductString;
-            this.securityAttrUnused.bInheritHandle = 1;
+            Path = path;
+            Vid = vid;
+            Pid = pid;
+            Version = version;
+            HidUsage = hidUsage;
+            HidUsagePage = hidUsagePage;
+            ReadLength = readSize;
+            WriteLength = writeSize;
+            ManufacturersString = manufacturersString;
+            ProductString = productString;
+            securityAttrUnused.bInheritHandle = 1;
         }
         //--------------------------------------------------------------------------------------------
 
-        public String GetErrorString(int errNumb)
+        public static string GetErrorString(int errNumb)
         {
             int[] EDS = new int[100];
-            String[] EDA = new String[100];
-            String st;
+            string[] EDA = new string[100];
+            string st;
 
             EDS[0] = 0; EDA[0] = "000 Success";
 
@@ -221,6 +166,7 @@ namespace RailDriver
             // Error = st;
             return st;
         }
+
         //-----------------------------------------------------------------------------------------
         protected void ErrorThread()
         {
@@ -229,13 +175,13 @@ namespace RailDriver
                 if (errCodeRE != 0)
                 {
                     holdDataThreadOpen = true;
-                    registeredErrorHandler.HandlePIEHidError(this, errCodeRE);
+                    registeredErrorHandler.HandleHidError(this, errCodeRE);
                     holdDataThreadOpen = false;
                 }
                 if (errCodeWE != 0)
                 {
                     holdErrorThreadOpen = true;
-                    registeredErrorHandler.HandlePIEHidError(this, errCodeWE);
+                    registeredErrorHandler.HandleHidError(this, errCodeWE);
                     holdErrorThreadOpen = false;
 
                 }
@@ -252,16 +198,18 @@ namespace RailDriver
         {
             //   FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttrUnused = new FileIOApiDeclarations.SECURITY_ATTRIBUTES();
             IntPtr overlapEvent = FileIOApiDeclarations.CreateEvent(ref securityAttrUnused, 1, 0, "");
-            FileIOApiDeclarations.OVERLAPPED overlapped = new FileIOApiDeclarations.OVERLAPPED();
+            FileIOApiDeclarations.OVERLAPPED overlapped = new FileIOApiDeclarations.OVERLAPPED
+            {
+                Offset = 0,
+                OffsetHigh = 0,
+                hEvent = overlapEvent,
+                Internal = IntPtr.Zero,
+                InternalHigh = IntPtr.Zero
+            };
+            if (WriteLength == 0) 
+                return;
 
-            overlapped.Offset = 0;// IntPtr.Zero;
-            overlapped.OffsetHigh = 0;// IntPtr.Zero;
-            overlapped.hEvent = overlapEvent;
-            overlapped.Internal = IntPtr.Zero;
-            overlapped.InternalHigh = IntPtr.Zero;
-            if (outputReportSize == 0) return;
-
-            byte[] buffer = new byte[outputReportSize];
+            byte[] buffer = new byte[WriteLength];
             GCHandle wgch = GCHandle.Alloc(buffer, GCHandleType.Pinned); //onur March 2009 - pinning is reuired
 
             int byteCount = 0; ;
@@ -272,22 +220,25 @@ namespace RailDriver
             while (writeThreadActive)
             {
                 if (writeRing == null) { errCodeW = 407; errCodeWE = 407; goto Error; }
-                while (writeRing.get((byte[])buffer) == 0)
+                while (writeRing.Get((byte[])buffer) == 0)
                 {
-                    if (0 == FileIOApiDeclarations.WriteFile(
-                         writeFileHandle,
-                         wgch.AddrOfPinnedObject(),
-                         outputReportSize,
-                         ref byteCount,
-                         ref overlapped))
+                    if (0 == FileIOApiDeclarations.WriteFile(writeFileHandle, wgch.AddrOfPinnedObject(), WriteLength, ref byteCount, ref overlapped))
                     {
-                        int result = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+                        int result = Marshal.GetLastWin32Error();
                         if (result != FileIOApiDeclarations.ERROR_IO_PENDING)
                         //if ((result == FileIOApiDeclarations.ERROR_INVALID_HANDLE) ||
                         //    (result == FileIOApiDeclarations.ERROR_DEVICE_NOT_CONNECTED))
                         {
-                            if (result == 87) { errCodeW = 412; errCodeWE = 412; }
-                            else { errCodeW = result; errCodeWE = 408; }
+                            if (result == 87) 
+                            { 
+                                errCodeW = 412; 
+                                errCodeWE = 412; 
+                            }
+                            else 
+                            { 
+                                errCodeW = result; 
+                                errCodeWE = 408; 
+                            }
                             goto Error;
                         }//if (result ==
                         else
@@ -330,7 +281,7 @@ namespace RailDriver
                     }
                     else
                     {
-                        if ((long)byteCount != outputReportSize)
+                        if ((long)byteCount != WriteLength)
                         {
                             errCodeW = 410;
                             errCodeWE = 410;
@@ -339,8 +290,8 @@ namespace RailDriver
                     }
                 WriteCompleted:;
                 }//while(get==
-                FileIOApiDeclarations.WaitForSingleObject(writeEvent, 100);
-                FileIOApiDeclarations.ResetEvent(writeEvent);
+                _ = FileIOApiDeclarations.WaitForSingleObject(writeEvent, 100);
+                _ = FileIOApiDeclarations.ResetEvent(writeEvent);
                 // System.Threading.Thread.Sleep(100);
             }
         Error:
@@ -348,19 +299,20 @@ namespace RailDriver
 
             return;
         }
+
         protected void ReadThread()
         {
 
-            //        FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttrUnused = new FileIOApiDeclarations.SECURITY_ATTRIBUTES();
             IntPtr overlapEvent = FileIOApiDeclarations.CreateEvent(ref securityAttrUnused, 1, 0, "");
-            FileIOApiDeclarations.OVERLAPPED overlapped = new FileIOApiDeclarations.OVERLAPPED();
-
-            overlapped.Offset = 0;// IntPtr.Zero;
-            overlapped.OffsetHigh = 0;// IntPtr.Zero;
-            overlapped.hEvent = (IntPtr)overlapEvent;
-            overlapped.Internal = IntPtr.Zero;
-            overlapped.InternalHigh = IntPtr.Zero;
-            if (inputReportSize == 0)
+            FileIOApiDeclarations.OVERLAPPED overlapped = new FileIOApiDeclarations.OVERLAPPED
+            {
+                Offset = 0,
+                OffsetHigh = 0,
+                hEvent = overlapEvent,
+                Internal = IntPtr.Zero,
+                InternalHigh = IntPtr.Zero
+            };
+            if (ReadLength == 0)
             {
                 errCodeR = 302;
                 errCodeRE = 302;
@@ -369,18 +321,22 @@ namespace RailDriver
             errCodeR = 0;
             errCodeRE = 0;
 
-            byte[] buffer = new byte[inputReportSize];
-            GCHandle gch = GCHandle.Alloc(buffer, GCHandleType.Pinned); //onur March 2009 - pinning is reuired
+            byte[] buffer = new byte[ReadLength];
+            GCHandle gch = GCHandle.Alloc(buffer, GCHandleType.Pinned); //onur March 2009 - pinning is required
 
             while (readThreadActive)
             {
 
                 int dataRead = 0;//FileIOApiDeclarations.
-                if (readFileHandle.IsInvalid) { errCodeRE = errCodeR = 320; goto EXit; }
+                if (readFileHandle.IsInvalid) 
+                { 
+                    errCodeRE = errCodeR = 320; 
+                    goto EXit; 
+                }
 
-                if (0 == FileIOApiDeclarations.ReadFile(readFileHandle, gch.AddrOfPinnedObject(), inputReportSize, ref dataRead, ref overlapped)) //ref readFileBuffer[0]
+                if (0 == FileIOApiDeclarations.ReadFile(readFileHandle, gch.AddrOfPinnedObject(), ReadLength, ref dataRead, ref overlapped)) //ref readFileBuffer[0]
                 {
-                    int result = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+                    int result = Marshal.GetLastWin32Error();
                     if (result != FileIOApiDeclarations.ERROR_IO_PENDING) //|| result == FileIOApiDeclarations.ERROR_DEVICE_NOT_CONNECTED)
                     {
                         if (readFileHandle.IsInvalid) { errCodeRE = errCodeR = 321; goto EXit; }
@@ -399,7 +355,7 @@ namespace RailDriver
                             {
                                 if (0 == FileIOApiDeclarations.GetOverlappedResult(readFileHandle, ref overlapped, ref dataRead, 0))
                                 {
-                                    result = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+                                    result = Marshal.GetLastWin32Error();
                                     if (result == FileIOApiDeclarations.ERROR_INVALID_HANDLE || result == FileIOApiDeclarations.ERROR_DEVICE_NOT_CONNECTED)
                                     {
 
@@ -419,25 +375,26 @@ namespace RailDriver
                 }
             //buffer[0] = 90;
             ReadCompleted:
-                if (dataRead != inputReportSize) { errCodeR = 310; errCodeRE = 310; goto EXit; }
+                if (dataRead != ReadLength) { errCodeR = 310; errCodeRE = 310; goto EXit; }
 
-                if (suppressDuplicateReports)
+                if (SuppressDuplicateReports)
                 {
-                    int r = readRing.putIfDiff(buffer);
-                    if (r == 0) FileIOApiDeclarations.SetEvent(readEvent);
+                    int r = readRing.PutIfDiff(buffer);
+                    if (r == 0)
+                        _ = FileIOApiDeclarations.SetEvent(readEvent);
                 }
                 else
                 {
-                    readRing.put(buffer);
-                    FileIOApiDeclarations.SetEvent(readEvent);
+                    readRing.Put(buffer);
+                    _ = FileIOApiDeclarations.SetEvent(readEvent);
                 }
 
             }//while
 
         EXit:
-            FileIOApiDeclarations.CancelIo(readFileHandle);
+            _ = FileIOApiDeclarations.CancelIo(readFileHandle);
             readFileHandle = null;
-            gch.Free(); //onur
+            gch.Free();
             return;
         }
         //------------------------------------------------------------------------------------------
@@ -445,36 +402,37 @@ namespace RailDriver
         //----------------------------------------------------------------------------------------
         protected void DataEventThread()
         {
-            Byte[] currBuff = new Byte[inputReportSize];
+            byte[] currBuff = new byte[ReadLength];
 
 
             while (dataThreadActive)
             {
-                if (readRing == null) return;
-                if (callNever == false)
+                if (readRing == null) 
+                    return;
+                if (!CallNever)
                 {
                     if (errCodeR != 0)
                     {
-                        Array.Clear(currBuff, 0, inputReportSize);
+                        Array.Clear(currBuff, 0, ReadLength);
                         holdDataThreadOpen = true;
-                        registeredDataHandler.HandlePIEHidData(currBuff, this, errCodeR);
+                        registeredDataHandler.HandleHidData(currBuff, this, errCodeR);
                         holdDataThreadOpen = false;
                         dataThreadActive = false;
                     }
-                    else if (readRing.get(currBuff) == 0)
+                    else if (readRing.Get(currBuff) == 0)
                     {
                         holdDataThreadOpen = true;
-                        registeredDataHandler.HandlePIEHidData(currBuff, this, 0);
+                        registeredDataHandler.HandleHidData(currBuff, this, 0);
                         holdDataThreadOpen = false;
                     }
-                    if (readRing.IsEmpty()) FileIOApiDeclarations.ResetEvent(readEvent);
+                    if (readRing.IsEmpty())
+                        _ = FileIOApiDeclarations.ResetEvent(readEvent);
                 }
                 // System.Threading.Thread.Sleep(10);
-                FileIOApiDeclarations.WaitForSingleObject(readEvent, 100);
-            }//while	
+                _ = FileIOApiDeclarations.WaitForSingleObject(readEvent, 100);
+            }
             return;
-        }//DataEventThread()
-         //----------------------------------------------------------------------------------------
+        }
 
         //-----------------------------------------------------------------------------
         /// <summary>
@@ -483,15 +441,15 @@ namespace RailDriver
         /// If outputReportSize greater than zero it generates a write handle.
         /// </summary>
         /// <returns></returns>
-        public Int64 SetupInterface()
+        public int SetupInterface()
         {
             int retin = 0;
             int retout = 0;
 
             if (connected) return 203;
-            if (inputReportSize > 0)
+            if (ReadLength > 0)
             {
-                readFileH = FileIOApiDeclarations.CreateFile(path, FileIOApiDeclarations.GENERIC_READ,
+                readFileH = FileIOApiDeclarations.CreateFile(Path, FileIOApiDeclarations.GENERIC_READ,
                  FileIOApiDeclarations.FILE_SHARE_READ | FileIOApiDeclarations.FILE_SHARE_WRITE,
                  IntPtr.Zero, FileIOApiDeclarations.OPEN_EXISTING, FileIOApiDeclarations.FILE_FLAG_OVERLAPPED, 0);
 
@@ -506,18 +464,20 @@ namespace RailDriver
                     goto outputinit;
                 }
                 readEvent = FileIOApiDeclarations.CreateEvent(ref securityAttrUnused, 1, 0, "");
-                readRing = new RngBuf2(128, inputReportSize);
-                readThreadHandle = new Thread(new ThreadStart(ReadThread));
-                readThreadHandle.IsBackground = true;
-                readThreadHandle.Name = "PIEHidReadThread for " + pid;
+                readRing = new RingBuffer(128, ReadLength);
+                readThreadHandle = new Thread(new ThreadStart(ReadThread))
+                {
+                    IsBackground = true,
+                    Name = $"PIEHidReadThread for {Pid}"
+                };
                 readThreadActive = true;
                 readThreadHandle.Start();
             }
 
         outputinit:
-            if (outputReportSize > 0)
+            if (WriteLength > 0)
             {
-                IntPtr writeFileH = FileIOApiDeclarations.CreateFile(path, FileIOApiDeclarations.GENERIC_WRITE,
+                IntPtr writeFileH = FileIOApiDeclarations.CreateFile(Path, FileIOApiDeclarations.GENERIC_WRITE,
                       FileIOApiDeclarations.FILE_SHARE_READ | FileIOApiDeclarations.FILE_SHARE_WRITE,
                        IntPtr.Zero, FileIOApiDeclarations.OPEN_EXISTING,
                       FileIOApiDeclarations.FILE_FLAG_OVERLAPPED,
@@ -533,19 +493,24 @@ namespace RailDriver
                     goto ErrorOut;
                 }
                 writeEvent = FileIOApiDeclarations.CreateEvent(ref securityAttrUnused, 1, 0, "");
-                writeRing = new RngBuf2(128, outputReportSize);
-                writeThreadHandle = new Thread(new ThreadStart(WriteThread));
-                writeThreadHandle.IsBackground = true;
-                writeThreadHandle.Name = "PIEHidWriteThread for " + pid;
+                writeRing = new RingBuffer(128, WriteLength);
+                writeThreadHandle = new Thread(new ThreadStart(WriteThread))
+                {
+                    IsBackground = true,
+                    Name = $"PIEHidWriteThread for {Pid}"
+                };
                 writeThreadActive = true;
                 writeThreadHandle.Start();
 
             }
             connected = true;
         ErrorOut:
-            if ((retin == 0) && (retout == 0)) return 0;
-            if ((retin == 207) && (retout == 208)) return 209;
-            else return retin + retout;
+            if ((retin == 0) && (retout == 0)) 
+                return 0;
+            if ((retin == 207) && (retout == 208)) 
+                return 209;
+            else 
+                return retin + retout;
 
         }
 
@@ -557,7 +522,7 @@ namespace RailDriver
             if (dataThreadActive)
             {
                 dataThreadActive = false;
-                FileIOApiDeclarations.SetEvent(readEvent);
+                _ = FileIOApiDeclarations.SetEvent(readEvent);
                 int n = 0;
                 if (dataThreadHandle != null)
                 {
@@ -591,7 +556,7 @@ namespace RailDriver
             if (writeThreadActive)
             {
                 writeThreadActive = false;
-                FileIOApiDeclarations.SetEvent(writeEvent);
+                _ = FileIOApiDeclarations.SetEvent(writeEvent);
                 if (writeThreadHandle != null)
                 {
                     int n = 0;
@@ -626,7 +591,7 @@ namespace RailDriver
             //  if (readEvent != null) {readEvent = null;}
             //  if (writeEvent != null) { writeEvent = null; }
 
-            if ((0x00FF != pid && 0x00FE != pid && 0x00FD != pid && 0x00FC != pid && 0x00FB != pid) || version > 272)
+            if ((0x00FF != Pid && 0x00FE != Pid && 0x00FD != Pid && 0x00FC != Pid && 0x00FB != Pid) || Version > 272)
             {
                 // it's not an old VEC foot pedal (those hang when closing the handle)
                 if (readFileHandle != null) // 9/1/09 - readFileHandle != null ||added by Onur to avoid null reference exception
@@ -641,17 +606,21 @@ namespace RailDriver
             connected = false;
 
         }
-        public Int64 SetDataCallback(PIEDataHandler handler)
+        public int SetDataCallback(IDataHandler handler)
         {
-            if (!connected) return 702;
-            if (inputReportSize == 0) return 703;
+            if (!connected) 
+                return 702;
+            if (ReadLength == 0) 
+                return 703;
 
             if (registeredDataHandler == null)
             {//registeredDataHandler is not defined so define it and create thread. 
                 registeredDataHandler = handler;
-                dataThreadHandle = new Thread(new ThreadStart(DataEventThread));
-                dataThreadHandle.IsBackground = true;
-                dataThreadHandle.Name = "PIEHidEventThread for " + pid;
+                dataThreadHandle = new Thread(new ThreadStart(DataEventThread))
+                {
+                    IsBackground = true,
+                    Name = $"PIEHidEventThread for {Pid}"
+                };
                 dataThreadActive = true;
                 dataThreadHandle.Start();
             }
@@ -662,16 +631,19 @@ namespace RailDriver
             return 0;
         }
 
-        public Int64 SetErrorCallback(PIEErrorHandler handler)
+        public int SetErrorCallback(IErrorHandler handler)
         {
-            if (!connected) return 802;
+            if (!connected) 
+                return 802;
 
             if (registeredErrorHandler == null)
             {//registeredErrorHandler is not defined so define it and create thread. 
                 registeredErrorHandler = handler;
-                errorThreadHandle = new Thread(new ThreadStart(ErrorThread));
-                errorThreadHandle.IsBackground = true;
-                errorThreadHandle.Name = "PIEHidErrorThread for " + pid;
+                errorThreadHandle = new Thread(new ThreadStart(ErrorThread))
+                {
+                    IsBackground = true,
+                    Name = $"PIEHidErrorThread for {Pid}"
+                };
                 errorThreadActive = true;
                 errorThreadHandle.Start();
             }
@@ -682,64 +654,69 @@ namespace RailDriver
             return 0;
         }
 
-        /*	public int ClearBuffer()
-            {			
-                return 0;
-            }
-         */
-
         public int ReadLast(ref byte[] dest)
         {
-            if (inputReportSize == 0) return 502;
-            if (false == connected) return 507;
-            if (dest == null) dest = new byte[inputReportSize];
-            if (dest.Length < inputReportSize) return 503;
-
-            if (readRing.getlast(dest) != 0) return 504;
+            if (ReadLength == 0) 
+                return 502;
+            if (!connected) 
+                return 507;
+            if (dest == null) 
+                dest = new byte[ReadLength];
+            if (dest.Length < ReadLength) 
+                return 503;
+            if (readRing.Getlast(dest) != 0) 
+                return 504;
             return 0;
         }
 
         public int ReadData(ref byte[] dest)
         {
-            if (false == connected) return 303;
-            if (dest == null) dest = new byte[inputReportSize];
-            if (dest.Length < inputReportSize) return 311;
-
-            if (readRing.get(dest) != 0) return 304;
+            if (!connected) 
+                return 303;
+            if (dest == null) 
+                dest = new byte[ReadLength];
+            if (dest.Length < ReadLength) 
+                return 311;
+            if (readRing.Get(dest) != 0) 
+                return 304;
             return 0;
         }
 
         public int BlockingReadData(ref byte[] dest, int maxMillis)
         {
-            long startTicks = System.DateTime.UtcNow.Ticks;
+            long startTicks = DateTime.UtcNow.Ticks;
             int ret = 304;
             int mills = maxMillis;
             while ((mills > 0) && (ret == 304))
             {
                 if ((ret = ReadData(ref dest)) == 0) break;
-                long nowTicks = System.DateTime.UtcNow.Ticks;
+                long nowTicks = DateTime.UtcNow.Ticks;
                 mills = maxMillis - ((int)(nowTicks - startTicks) / 10000);
                 Thread.Sleep(10);
             }
             return ret;
         }
+
         public int WriteData(byte[] wData)
         {
-            if (outputReportSize == 0) return 402;
-            if (false == connected) return 406;
-
-            if (wData.Length < outputReportSize) return 403;
-            if (writeRing == null) return 405;
-            if (errCodeW != 0) return errCodeW;
-            if (writeRing.putIfCan(wData) == 3)
+            if (WriteLength == 0) 
+                return 402;
+            if (!connected) 
+                return 406;
+            if (wData.Length < WriteLength) 
+                return 403;
+            if (writeRing == null) 
+                return 405;
+            if (errCodeW != 0) 
+                return errCodeW;
+            if (writeRing.PutIfCan(wData) == 3)
             {
-                System.Threading.Thread.Sleep(1);
+                Thread.Sleep(1);
                 return 404;
             }
-            FileIOApiDeclarations.SetEvent(writeEvent);
+            _ = FileIOApiDeclarations.SetEvent(writeEvent);
             return 0;
         }
-
 
         //--------------------------------------------------------------------------------------------
         /// <summary>
@@ -755,7 +732,7 @@ namespace RailDriver
         /// Enumerates all valid USB devics of the specified Vid.
         /// </summary>
         /// <returns>list of all devices found, ordered by USB port connection</returns>
-        public static PIEDevice[] EnumeratePIE(Int64 vid)
+        public static PIEDevice[] EnumeratePIE(int vid)
         {
 
             // FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttrUnusedE = new FileIOApiDeclarations.SECURITY_ATTRIBUTES();  
@@ -769,18 +746,17 @@ namespace RailDriver
                 | DeviceManagementApiDeclarations.DIGCF_DEVICEINTERFACE);
 
             DeviceManagementApiDeclarations.SP_DEVICE_INTERFACE_DATA deviceInterfaceData = new DeviceManagementApiDeclarations.SP_DEVICE_INTERFACE_DATA();
-            deviceInterfaceData.cbSize = Marshal.SizeOf(deviceInterfaceData); //28;
+            deviceInterfaceData.Size = Marshal.SizeOf(deviceInterfaceData); //28;
 
-            LinkedList<String> paths = new LinkedList<String>();
+            LinkedList<string> paths = new LinkedList<string>();
 
-            for (int i = 0; 0 != DeviceManagementApiDeclarations.SetupDiEnumDeviceInterfaces(
-                deviceInfoSet, 0, ref guid, i, ref deviceInterfaceData); i++)
+            for (int i = 0; 0 != DeviceManagementApiDeclarations.SetupDiEnumDeviceInterfaces(deviceInfoSet, 0, ref guid, i, ref deviceInterfaceData); i++)
             {
                 int buffSize = 0;
-                DeviceManagementApiDeclarations.SetupDiGetDeviceInterfaceDetail(deviceInfoSet,
-                    ref deviceInterfaceData, IntPtr.Zero, 0, ref buffSize, IntPtr.Zero);
+                DeviceManagementApiDeclarations.SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref deviceInterfaceData, IntPtr.Zero, 0, ref buffSize, IntPtr.Zero);
                 // Use IntPtr to simulate detail data structure
                 IntPtr detailBuffer = Marshal.AllocHGlobal(buffSize);
+
                 // Simulate setting cbSize to 4 bytes + one character (seems to be what everyone has always done, even though it makes no sense)
                 //onur modified for 64-bit compatibility - March 2009
                 if (IntPtr.Size == 8) //64-bit
@@ -788,24 +764,25 @@ namespace RailDriver
                 else //32-bit
                     Marshal.WriteInt64(detailBuffer, 4 + Marshal.SystemDefaultCharSize); //patti
 
-                if (DeviceManagementApiDeclarations.SetupDiGetDeviceInterfaceDetail(deviceInfoSet,
-                    ref deviceInterfaceData, detailBuffer, buffSize, ref buffSize, IntPtr.Zero))
+                if (DeviceManagementApiDeclarations.SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref deviceInterfaceData, detailBuffer, buffSize, ref buffSize, IntPtr.Zero))
                 {
                     // convert buffer (starting past the cbsize variable) to string path
                     paths.AddLast(Marshal.PtrToStringAuto(new IntPtr(detailBuffer.ToInt64() + 4)));
                 }
             }
-            DeviceManagementApiDeclarations.SetupDiDestroyDeviceInfoList(deviceInfoSet);
+            _ = DeviceManagementApiDeclarations.SetupDiDestroyDeviceInfoList(deviceInfoSet);
             //Security attributes not used anymore - not necessary Onur March 2009
             // Open each device file and test for vid
-            FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttributes = new FileIOApiDeclarations.SECURITY_ATTRIBUTES();
-            securityAttributes.lpSecurityDescriptor = IntPtr.Zero;
-            securityAttributes.bInheritHandle = System.Convert.ToInt32(true); //patti keep Int32 here
+            FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttributes = new FileIOApiDeclarations.SECURITY_ATTRIBUTES
+            {
+                lpSecurityDescriptor = IntPtr.Zero,
+                bInheritHandle = Convert.ToInt32(true) //patti keep Int32 here
+            };
             securityAttributes.nLength = Marshal.SizeOf(securityAttributes);
 
-            for (LinkedList<String>.Enumerator en = paths.GetEnumerator(); en.MoveNext();)
+            for (LinkedList<string>.Enumerator en = paths.GetEnumerator(); en.MoveNext();)
             {
-                String path = en.Current;
+                string path = en.Current;
 
                 IntPtr fileH = FileIOApiDeclarations.CreateFile(path, FileIOApiDeclarations.GENERIC_WRITE,
                     FileIOApiDeclarations.FILE_SHARE_READ | FileIOApiDeclarations.FILE_SHARE_WRITE,
@@ -832,7 +809,7 @@ namespace RailDriver
                             {
                                 // Got Capabilities, add device to list
                                 byte[] Mstring = new byte[128];
-                                String ssss = ""; ;
+                                string ssss = ""; ;
                                 if (0 != HidApiDeclarations.HidD_GetManufacturerString(fileHandle, ref Mstring[0], 128))
                                 {
                                     for (int i = 0; i < 64; i++)
@@ -845,11 +822,9 @@ namespace RailDriver
                                     }
                                 }
                                 byte[] Pstring = new byte[128];
-                                String psss = "";
+                                string psss = "";
                                 if (0 != HidApiDeclarations.HidD_GetProductString(fileHandle, ref Pstring[0], 128))
                                 {
-                                    // Pstring[0] = 0xa0;  Test unicode
-                                    // Pstring[1] = 0x03;
                                     for (int i = 0; i < 64; i++)
                                     {
                                         byte[] t = new byte[2];
@@ -858,13 +833,10 @@ namespace RailDriver
                                         if (t[0] == 0) break;
                                         psss += System.Text.Encoding.Unicode.GetString(t);
                                     }
-                                    // psss=(System.Text.Encoding.Unicode.GetString(Pstring)).Trim(new char[]{' '});
-
                                 }
 
-                                devices.AddLast(new PIEDevice(path, hidAttributes.VendorID, hidAttributes.ProductID, hidAttributes.VersionNumber,
-                                    hidCaps.Usage, hidCaps.UsagePage, hidCaps.InputReportByteLength, hidCaps.OutputReportByteLength,
-                                    ssss, psss));
+                                devices.AddLast(new PIEDevice(path, hidAttributes.VendorID, hidAttributes.ProductID, hidAttributes.VersionNumber, hidCaps.Usage, 
+                                    hidCaps.UsagePage, hidCaps.InputReportByteLength, hidCaps.OutputReportByteLength, ssss, psss));
                             }
 
                         }
@@ -884,19 +856,21 @@ namespace RailDriver
             return ret;
         }
 
-        protected Int64 SendSausageCommands(ushort[] commandSequence)
+        protected int SendSausageCommands(ushort[] commandSequence)
         {
-            if (outputReportSize != 2 || hidUsagePage != 1 || hidUsage != 6) // hid page 1, usage 6 is keyboard
+            if (WriteLength != 2 || HidUsagePage != 1 || HidUsage != 6) // hid page 1, usage 6 is keyboard
             {
                 return 1302;
             }
 
-            FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttributes = new FileIOApiDeclarations.SECURITY_ATTRIBUTES();
-            securityAttributes.lpSecurityDescriptor = IntPtr.Zero;
-            securityAttributes.bInheritHandle = System.Convert.ToInt32(true);  //patti keep int32 here
+            FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttributes = new FileIOApiDeclarations.SECURITY_ATTRIBUTES
+            {
+                lpSecurityDescriptor = IntPtr.Zero,
+                bInheritHandle = Convert.ToInt32(true)
+            };
             securityAttributes.nLength = Marshal.SizeOf(securityAttributes);
 
-            IntPtr hF = FileIOApiDeclarations.CreateFile(path,
+            IntPtr hF = FileIOApiDeclarations.CreateFile(Path,
                 FileIOApiDeclarations.GENERIC_WRITE,
                 FileIOApiDeclarations.FILE_SHARE_READ | FileIOApiDeclarations.FILE_SHARE_WRITE,
                  IntPtr.Zero,
@@ -908,10 +882,12 @@ namespace RailDriver
             {
                 return 1301; ;
             }
-            FileIOApiDeclarations.OVERLAPPED overlapped = new FileIOApiDeclarations.OVERLAPPED();
-            overlapped.hEvent = IntPtr.Zero;
-            overlapped.Offset = 0;  // IntPtr.Zero;
-            overlapped.OffsetHigh = 0;// IntPtr.Zero;
+            FileIOApiDeclarations.OVERLAPPED overlapped = new FileIOApiDeclarations.OVERLAPPED
+            {
+                hEvent = IntPtr.Zero,
+                Offset = 0,  // IntPtr.Zero;
+                OffsetHigh = 0// IntPtr.Zero;
+            };
             foreach (ushort command in commandSequence)
             {
                 uint cmd = ((uint)command) << 16;
@@ -919,32 +895,22 @@ namespace RailDriver
 
                 if (!DeviceManagementApiDeclarations.DeviceIoControl(hFile, (uint)0x000b0008, ref cmd, 4, IntPtr.Zero, 0, ref bytesReturned, ref overlapped))
                 {
-                    int result = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
-                    return result;
+                    return Marshal.GetLastWin32Error();
                 }
             }
             hFile.Close();
             return 0;
         }
-        public Int64 ConvertToSplatMode()
+
+        public int ConvertToSplatMode()
         {
             return SendSausageCommands(convertToSplatModeSausages);
         }
-        public Int64 SendLEDSausage()
+
+        public int SendLEDSausage()
         {
             return SendSausageCommands(ledSausages);
         }
-
-        public static void DongleCheck2(int k0, int k1, int k2, int k3, int a0, int a1, int a2, int a3, out int r0, out int r1, out int r2, out int r3)
-        {
-            //patti removed code
-            r0 = 0;
-            r1 = 0;
-            r2 = 0;
-            r3 = 0;
-
-        }
-
 
     }
 }

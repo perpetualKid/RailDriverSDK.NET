@@ -5,7 +5,7 @@ using RailDriver;
 
 namespace RailDriver.Sample
 {
-    public partial class Form1 : Form, PIEDataHandler, PIEErrorHandler
+    public partial class Form1 : Form, IDataHandler, IErrorHandler
     {
         PIEDevice[] devices;
 
@@ -106,13 +106,13 @@ namespace RailDriver.Sample
                     //use the cbotodevice array which contains the mapping of the devices in the CboDevices to the actual device IDs
                     devices[cbotodevice[i]].SetErrorCallback(this);
                     devices[cbotodevice[i]].SetDataCallback(this);
-                    devices[cbotodevice[i]].callNever = false;
+                    devices[cbotodevice[i]].CallNever = false;
                 }
 
             }
         }
         //data callback    
-        public void HandlePIEHidData(Byte[] data, PIEDevice sourceDevice, int error)
+        public void HandleHidData(Byte[] data, PIEDevice sourceDevice, int error)
         {
             //check the sourceDevice and make sure it is the same device as selected in CboDevice   
             if (sourceDevice == devices[selecteddevice])
@@ -137,7 +137,7 @@ namespace RailDriver.Sample
 
         }
         //error callback
-        public void HandlePIEHidError(PIEDevice sourceDevice, Int32 error)
+        public void HandleHidError(PIEDevice sourceDevice, Int32 error)
         {
             this.SetToolStrip("Error: " + error.ToString());
         }

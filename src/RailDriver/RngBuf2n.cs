@@ -128,59 +128,84 @@ using System.Threading;
 
 namespace RailDriver
 {
-    class RngBuf2
+    internal class RingBuffer
     {
+        private readonly int N;
+        private readonly int M;
+        private int i;
+        private int j;
+        private int fl;
+        private int f;
+        private readonly byte[] pB;
 
-        int N, M, i, j, fl, f;//ring size
-        byte[] pB;
-        void jlock()
+        private void Jlock()
         {
             Monitor.Enter(pB);
             return;
         }
-        void junlock()
+
+        private void Junlock()
         {
             Monitor.Exit(pB);
             return;
         }
 
-        public RngBuf2(int nn, int mm)
+        public RingBuffer(int nn, int mm)
         {
 
-            N = nn; M = mm;
-            i = 0; j = 0;
-            f = 0; fl = 0;
+            N = nn; 
+            M = mm;
+            i = 0; 
+            j = 0;
+            f = 0; 
+            fl = 0;
             pB = new byte[N * M];
             Monitor.Enter(pB);
             Monitor.Exit(pB);
         }
 
 
-        public int putIfCan(byte[] pData)
+        public int PutIfCan(byte[] pData)
         {
-            jlock();
-            if (fl == 1) { junlock(); return 3; }
-            i++; if (i == N) i = 0;
-            if (i == j) fl = 1;
+            Jlock();
+            if (fl == 1) 
+            { 
+                Junlock(); 
+                return 3; 
+            }
+            i++; 
+            if (i == N) 
+                i = 0;
+            if (i == j) 
+                fl = 1;
             Array.Copy(pData, 0, pB, M * i, M);
             f = 1;
-            junlock();
+            Junlock();
             return 0;
         }
-        public void put(byte[] pData)
+
+        public void Put(byte[] pData)
         {
-            jlock();
-            i++; if (i == N) i = 0;
-            if (fl == 1) { j++; if (j == N) j = 0; }
-            if (i == j) fl = 1;
+            Jlock();
+            i++; 
+            if (i == N) 
+                i = 0;
+            if (fl == 1) 
+            { 
+                j++; 
+                if (j == N) 
+                    j = 0; 
+            }
+            if (i == j) 
+                fl = 1;
             Array.Copy(pData, 0, pB, M * i, M);
             f = 1;
-            junlock();
+            Junlock();
         }
-        public int putIfDiff(byte[] pData)
+        public int PutIfDiff(byte[] pData)
         {
             int ret = 1;
-            jlock();
+            Jlock();
             byte[] temp = new byte[M];
             Array.Copy(pData, 0, temp, 0, M);
             bool Diff = false;
@@ -194,55 +219,74 @@ namespace RailDriver
             }
             if (Diff)
             {
-                i++; if (i == N) i = 0;
-                if (fl == 1) { j++; if (j == N) j = 0; }
-                if (i == j) fl = 1;
+                i++; 
+                if (i == N) 
+                    i = 0;
+                if (fl == 1) 
+                { 
+                    j++; 
+                    if (j == N) 
+                        j = 0; 
+                }
+                if (i == j) 
+                    fl = 1;
                 Array.Copy(pData, 0, pB, M * i, M);
                 f = 1;
                 ret = 0;
             }
-            junlock();
+            Junlock();
             return ret;
         }
-        public int get(byte[] pS)
+        public int Get(byte[] pS)
         {
-            jlock();
-            if ((fl == 0) && (j == i)) { junlock(); return 1; }
+            Jlock();
+            if ((fl == 0) && (j == i)) 
+            { 
+                Junlock(); 
+                return 1; 
+            }
             fl = 0;
-            j++; if (j == N) j = 0;
+            j++; 
+            if (j == N) 
+                j = 0;
             Array.Copy(pB, j * M, pS, 0, M);
-            junlock();
+            Junlock();
             return 0;
         }
-        public int getlast(byte[] pS)
+
+        public int Getlast(byte[] pS)
         {
-            jlock();
-            if (f == 0) { junlock(); return 2; }
+            Jlock();
+            if (f == 0) 
+            { 
+                Junlock(); 
+                return 2; 
+            }
             //  memcpy(pS, pB + i * M, M);
             Array.Copy(pB, i * M, pS, 0, M);
-            junlock();
+            Junlock();
             return 0;
         }
-        public void clear()
+
+        public void Clear()
         {
-            jlock();
+            Jlock();
             i = 0; //offset to put element
             j = 0; //offset to get element
             f = 0; //flag for first time
             fl = 0; //flag for overflow
             Array.Clear(pB, 0, M * N);
-            junlock();
+            Junlock();
         }
         public bool IsEmpty()
         {
-            jlock();
+            Jlock();
             bool a;
             a = ((fl == 0) && (j == i));
-            junlock();
+            Junlock();
             return a;
         }
     }
 }
-
 
 

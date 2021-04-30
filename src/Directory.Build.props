@@ -33,7 +33,7 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <Deterministic>true</Deterministic>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageTags>raildriver;PIEHID;</PackageTags>
+    <PackageTags>RailDriver;PIEHID;TrainSimulator</PackageTags>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TF_BUILD)' == 'true'">
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
