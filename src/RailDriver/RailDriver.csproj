@@ -2,18 +2,9 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <Description>Managed .Net PIE HID Library for RailDriver SDK</Description>
+    <Description>Managed .Net HID Library for PIE RailDriver SDK. Supporting both 32bit and 64bit environment in a single version. .NET Standard 2.0 supporting a wide range of .NET platforms from .NET Framework 4.6.1 - 4.8, .NET Core &gt;=2.0 and .NET 5+</Description>
     <Authors>perpetualKid</Authors>
     <PackageId>RailDriver</PackageId>
     <Product>RailDriver SDK</Product>
-    <Company />
-    <EnableNETAnalyzers>true</EnableNETAnalyzers>
   </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="Nerdbank.GitVersioning" Version="3.4.194">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-  </ItemGroup>
-
 </Project>

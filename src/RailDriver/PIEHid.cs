@@ -7,6 +7,9 @@ using Microsoft.Win32.SafeHandles;
 
 namespace RailDriver
 {
+    /// <summary>
+    /// PIE Device
+    /// </summary>
     public class PIEDevice
     {
         private bool connected = false;
@@ -39,30 +42,79 @@ namespace RailDriver
         private static readonly ushort[] convertToSplatModeSausages = { 7, 5, 4, 3, 2, 1 };
         private static readonly ushort[] ledSausages = { 7, 3, 1, 6, 4, 2 };
 
+        /// <summary>
+        /// Device Path
+        /// </summary>
         public string Path { get; }
 
+        /// <summary>
+        /// Vendor ID
+        /// </summary>
         public int Vid { get; }
 
+        /// <summary>
+        /// Product ID
+        /// </summary>
         public int Pid { get; }
 
+        /// <summary>
+        /// Version
+        /// </summary>
         public int Version { get; }
 
+        /// <summary>
+        /// HID Usage
+        /// </summary>
         public int HidUsage { get; }
 
+        /// <summary>
+        /// HID Usage Page
+        /// </summary>
         public int HidUsagePage { get; }
 
+        /// <summary>
+        /// Read Buffer Length
+        /// </summary>
         public int ReadLength { get; }
 
+        /// <summary>
+        /// Write Buffer Length
+        /// </summary>
         public int WriteLength { get; }
 
+        /// <summary>
+        /// Manufacturer Name
+        /// </summary>
         public string ManufacturersString { get; }
 
+        /// <summary>
+        /// Product Name
+        /// </summary>
         public string ProductString { get; }
 
+        /// <summary>
+        /// Suppresses duplicate/same reports, only reporting changes
+        /// </summary>
         public bool SuppressDuplicateReports { get; set; }
 
+        /// <summary>
+        /// ???
+        /// </summary>
         public bool CallNever { get; set; }
 
+        /// <summary>
+        /// public ctor
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="vid"></param>
+        /// <param name="pid"></param>
+        /// <param name="version"></param>
+        /// <param name="hidUsage"></param>
+        /// <param name="hidUsagePage"></param>
+        /// <param name="readSize"></param>
+        /// <param name="writeSize"></param>
+        /// <param name="manufacturersString"></param>
+        /// <param name="productString"></param>
         public PIEDevice(string path, int vid, int pid, int version, int hidUsage, int hidUsagePage, int readSize, int writeSize, string manufacturersString, string productString)
         {
             Path = path;
@@ -77,8 +129,12 @@ namespace RailDriver
             ProductString = productString;
             securityAttrUnused.bInheritHandle = 1;
         }
-        //--------------------------------------------------------------------------------------------
 
+        /// <summary>
+        /// Translating error codes into messages
+        /// </summary>
+        /// <param name="errNumb"></param>
+        /// <returns></returns>
         public static string GetErrorString(int errNumb)
         {
             int[] EDS = new int[100];
@@ -167,8 +223,7 @@ namespace RailDriver
             return st;
         }
 
-        //-----------------------------------------------------------------------------------------
-        protected void ErrorThread()
+        private void ErrorThread()
         {
             while (errorThreadActive)
             {
@@ -190,11 +245,11 @@ namespace RailDriver
                 Thread.Sleep(25);
             }
         }
-        //-------------------------------------------------------------------------------------------
+
         /// <summary>
         /// Write Thread
         /// </summary>
-        protected void WriteThread()
+        private void WriteThread()
         {
             //   FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttrUnused = new FileIOApiDeclarations.SECURITY_ATTRIBUTES();
             IntPtr overlapEvent = FileIOApiDeclarations.CreateEvent(ref securityAttrUnused, 1, 0, "");
@@ -300,7 +355,7 @@ namespace RailDriver
             return;
         }
 
-        protected void ReadThread()
+        private void ReadThread()
         {
 
             IntPtr overlapEvent = FileIOApiDeclarations.CreateEvent(ref securityAttrUnused, 1, 0, "");
@@ -397,10 +452,8 @@ namespace RailDriver
             gch.Free();
             return;
         }
-        //------------------------------------------------------------------------------------------
 
-        //----------------------------------------------------------------------------------------
-        protected void DataEventThread()
+        private void DataEventThread()
         {
             byte[] currBuff = new byte[ReadLength];
 
@@ -514,6 +567,9 @@ namespace RailDriver
 
         }
 
+        /// <summary>
+        /// CLoses any open handles and shut down the active interface
+        /// </summary>
         public void CloseInterface()
         {
             if ((holdErrorThreadOpen) || (holdDataThreadOpen)) return;
@@ -606,6 +662,12 @@ namespace RailDriver
             connected = false;
 
         }
+
+        /// <summary>
+        /// IDataHandler Setup
+        /// </summary>
+        /// <param name="handler"></param>
+        /// <returns></returns>
         public int SetDataCallback(IDataHandler handler)
         {
             if (!connected) 
@@ -631,6 +693,11 @@ namespace RailDriver
             return 0;
         }
 
+        /// <summary>
+        /// IErrorHandler Setup
+        /// </summary>
+        /// <param name="handler"></param>
+        /// <returns></returns>
         public int SetErrorCallback(IErrorHandler handler)
         {
             if (!connected) 
@@ -654,6 +721,11 @@ namespace RailDriver
             return 0;
         }
 
+        /// <summary>
+        /// Reading last n bytes from buffer
+        /// </summary>
+        /// <param name="dest"></param>
+        /// <returns></returns>
         public int ReadLast(ref byte[] dest)
         {
             if (ReadLength == 0) 
@@ -669,6 +741,11 @@ namespace RailDriver
             return 0;
         }
 
+        /// <summary>
+        /// Reading n bytes from buffer
+        /// </summary>
+        /// <param name="dest"></param>
+        /// <returns></returns>
         public int ReadData(ref byte[] dest)
         {
             if (!connected) 
@@ -682,6 +759,12 @@ namespace RailDriver
             return 0;
         }
 
+        /// <summary>
+        /// Blocking Read, waiting for data
+        /// </summary>
+        /// <param name="dest"></param>
+        /// <param name="maxMillis"></param>
+        /// <returns></returns>
         public int BlockingReadData(ref byte[] dest, int maxMillis)
         {
             long startTicks = DateTime.UtcNow.Ticks;
@@ -697,6 +780,11 @@ namespace RailDriver
             return ret;
         }
 
+        /// <summary>
+        /// Writing to the device
+        /// </summary>
+        /// <param name="wData"></param>
+        /// <returns></returns>
         public int WriteData(byte[] wData)
         {
             if (WriteLength == 0) 
@@ -718,7 +806,7 @@ namespace RailDriver
             return 0;
         }
 
-        //--------------------------------------------------------------------------------------------
+
         /// <summary>
         /// Enumerates all valid PIE USB devics.
         /// </summary>
@@ -757,17 +845,15 @@ namespace RailDriver
                 // Use IntPtr to simulate detail data structure
                 IntPtr detailBuffer = Marshal.AllocHGlobal(buffSize);
 
-                // Simulate setting cbSize to 4 bytes + one character (seems to be what everyone has always done, even though it makes no sense)
-                //onur modified for 64-bit compatibility - March 2009
-                if (IntPtr.Size == 8) //64-bit
-                    Marshal.WriteInt64(detailBuffer, Marshal.SizeOf(typeof(IntPtr))); //????patti
-                else //32-bit
-                    Marshal.WriteInt64(detailBuffer, 4 + Marshal.SystemDefaultCharSize); //patti
+                // sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA) depends on the process bitness,
+                // it's 6 with an X86 process (byte packing + 1 char, auto -> unicode -> 4 + 2*1)
+                // and 8 with an X64 process (8 bytes packing anyway).
+                Marshal.WriteInt32(detailBuffer, Environment.Is64BitProcess ? 8 : 6);
 
                 if (DeviceManagementApiDeclarations.SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref deviceInterfaceData, detailBuffer, buffSize, ref buffSize, IntPtr.Zero))
                 {
                     // convert buffer (starting past the cbsize variable) to string path
-                    paths.AddLast(Marshal.PtrToStringAuto(new IntPtr(detailBuffer.ToInt64() + 4)));
+                    paths.AddLast(Marshal.PtrToStringAuto(detailBuffer + 4));
                 }
             }
             _ = DeviceManagementApiDeclarations.SetupDiDestroyDeviceInfoList(deviceInfoSet);
@@ -856,7 +942,7 @@ namespace RailDriver
             return ret;
         }
 
-        protected int SendSausageCommands(ushort[] commandSequence)
+        private int SendSausageCommands(ushort[] commandSequence)
         {
             if (WriteLength != 2 || HidUsagePage != 1 || HidUsage != 6) // hid page 1, usage 6 is keyboard
             {
@@ -902,11 +988,19 @@ namespace RailDriver
             return 0;
         }
 
+        /// <summary>
+        /// ???
+        /// </summary>
+        /// <returns></returns>
         public int ConvertToSplatMode()
         {
             return SendSausageCommands(convertToSplatModeSausages);
         }
 
+        /// <summary>
+        /// ???
+        /// </summary>
+        /// <returns></returns>
         public int SendLEDSausage()
         {
             return SendSausageCommands(ledSausages);
