@@ -18,7 +18,7 @@ pool:
   vmImage: 'windows-latest'
 
 variables:
-  solution: '**/*.sln'
+  solution: 'src/*.sln'
   buildPlatform: 'Any CPU'
   buildConfiguration: 'Release' #changes to Debug below if this is a prerelease version 
 
@@ -80,7 +80,7 @@ steps:
   displayName: 'dotnet pack'
   inputs:
     command: 'pack'
-    packagesToPack: '**/*.csproj;!**/*.Tests.csproj;!**/Examples.*.csproj'
+    packagesToPack: 'src/**/*.csproj;!**/*.Tests.csproj;!**/Examples.*.csproj'
 
 - task: PublishPipelineArtifact@1
   displayName: Publishing build artifacts
