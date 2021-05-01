@@ -130,12 +130,12 @@ namespace RailDriver
 {
     internal class RingBuffer
     {
-        private readonly int elements;
+        private readonly int elementCount;
         private readonly int elementSize;
         private int writePosition;
         private int readPosition;
         private bool overflow;
-        private int f;
+        private bool noData;
         private readonly byte[] ringBuffer;
 
         private void Lock()
@@ -158,9 +158,9 @@ namespace RailDriver
         public RingBuffer(int elements, int elementSize)
         {
 
-            this.elements = elements;
+            elementCount = elements;
             this.elementSize = elementSize;
-            ringBuffer = new byte[this.elements * this.elementSize];
+            ringBuffer = new byte[elementCount * this.elementSize];
             Monitor.Enter(ringBuffer);
             Monitor.Exit(ringBuffer);
         }
@@ -180,12 +180,12 @@ namespace RailDriver
                 return 3;
             }
             writePosition++;
-            if (writePosition == elements)
+            if (writePosition == elementCount)
                 writePosition = 0;
             if (writePosition == readPosition)
                 overflow = true;
             Array.Copy(data, 0, ringBuffer, elementSize * writePosition, elementSize);
-            f = 1;
+            noData = false;
             Unlock();
             return 0;
         }
@@ -199,59 +199,59 @@ namespace RailDriver
         {
             Lock();
             writePosition++;
-            if (writePosition == elements)
+            if (writePosition == elementCount)
                 writePosition = 0;
             if (overflow)
             {
                 readPosition++;
-                if (readPosition == elements)
+                if (readPosition == elementCount)
                     readPosition = 0;
             }
             if (writePosition == readPosition)
                 overflow = true;
             Array.Copy(data, 0, ringBuffer, elementSize * writePosition, elementSize);
-            f = 1;
+            noData = false;
             Unlock();
         }
 
         /// <summary>
-        /// Puts anew data element into the ring buffera value 
+        /// Puts a new data element into the ring buffera value 
         /// if this element is different than the previous entry.
         /// </summary>
-        public int PutIfDiff(byte[] data)
+        public int TryPutChanged(byte[] data)
         {
-            int ret = 1;
+            int result = 1;
             Lock();
             byte[] temp = new byte[elementSize];
             Array.Copy(data, 0, temp, 0, elementSize);
-            bool Diff = false;
+            bool different = false;
             for (int j = 0; j < elementSize; j++)
             {
                 if (temp[j] != ringBuffer[j + writePosition * elementSize])
                 {
-                    Diff = true;
+                    different = true;
                     break;
                 }
             }
-            if (Diff)
+            if (different)
             {
                 writePosition++;
-                if (writePosition == elements)
+                if (writePosition == elementCount)
                     writePosition = 0;
                 if (overflow)
                 {
                     readPosition++;
-                    if (readPosition == elements)
+                    if (readPosition == elementCount)
                         readPosition = 0;
                 }
                 if (writePosition == readPosition)
                     overflow = true;
                 Array.Copy(data, 0, ringBuffer, elementSize * writePosition, elementSize);
-                f = 1;
-                ret = 0;
+                noData = false;
+                result = 0;
             }
             Unlock();
-            return ret;
+            return result;
         }
 
         /// <summary>
@@ -267,7 +267,7 @@ namespace RailDriver
             }
             overflow = false;
             readPosition++;
-            if (readPosition == elements)
+            if (readPosition == elementCount)
                 readPosition = 0;
             Array.Copy(ringBuffer, readPosition * elementSize, data, 0, elementSize);
             Unlock();
@@ -284,7 +284,7 @@ namespace RailDriver
         public int GetLast(byte[] data)
         {
             Lock();
-            if (f == 0)
+            if (noData)
             {
                 Unlock();
                 return 2;
@@ -297,17 +297,17 @@ namespace RailDriver
 
         /// <summary>
         /// Clears and initializes the ring buffer. After a call
-        /// to clear and before any calls to put() the get last
-        /// will return 2 (no data yet) and get will return 1 (no data).
+        /// to clear and before any calls to put() the GetLast
+        /// will return 2 (no data yet) and Get will return 1 (no data).
         /// </summary>
         public void Clear()
         {
             Lock();
             writePosition = 0; //offset to put element
             readPosition = 0; //offset to get element
-            f = 0; //flag for first time
+            noData = true; //flag for first time
             overflow = false; //flag for overflow
-            Array.Clear(ringBuffer, 0, elementSize * elements);
+            Array.Clear(ringBuffer, 0, elementSize * elementCount);
             Unlock();
         }
 

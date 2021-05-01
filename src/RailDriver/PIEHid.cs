@@ -434,7 +434,7 @@ namespace RailDriver
 
                 if (SuppressDuplicateReports)
                 {
-                    int r = readRing.PutIfDiff(buffer);
+                    int r = readRing.TryPutChanged(buffer);
                     if (r == 0)
                         _ = FileIOApiDeclarations.SetEvent(readEvent);
                 }
