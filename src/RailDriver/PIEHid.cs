@@ -736,7 +736,7 @@ namespace RailDriver
                 dest = new byte[ReadLength];
             if (dest.Length < ReadLength) 
                 return 503;
-            if (readRing.Getlast(dest) != 0) 
+            if (readRing.GetLast(dest) != 0) 
                 return 504;
             return 0;
         }
@@ -797,7 +797,7 @@ namespace RailDriver
                 return 405;
             if (errCodeW != 0) 
                 return errCodeW;
-            if (writeRing.PutIfCan(wData) == 3)
+            if (writeRing.TryPut(wData) == 3)
             {
                 Thread.Sleep(1);
                 return 404;

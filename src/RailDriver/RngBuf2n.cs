@@ -130,88 +130,104 @@ namespace RailDriver
 {
     internal class RingBuffer
     {
-        private readonly int N;
-        private readonly int M;
-        private int i;
-        private int j;
-        private int fl;
+        private readonly int elements;
+        private readonly int elementSize;
+        private int writePosition;
+        private int readPosition;
+        private bool overflow;
         private int f;
-        private readonly byte[] pB;
+        private readonly byte[] ringBuffer;
 
-        private void Jlock()
+        private void Lock()
         {
-            Monitor.Enter(pB);
+            Monitor.Enter(ringBuffer);
             return;
         }
 
-        private void Junlock()
+        private void Unlock()
         {
-            Monitor.Exit(pB);
+            Monitor.Exit(ringBuffer);
             return;
         }
 
-        public RingBuffer(int nn, int mm)
+        /// <summary>
+        /// Creating a new RingBuffer instance for elements Elements of size elementSize (in byte)
+        /// </summary>
+        /// <param name="elements"></param>
+        /// <param name="elementSize"></param>
+        public RingBuffer(int elements, int elementSize)
         {
 
-            N = nn; 
-            M = mm;
-            i = 0; 
-            j = 0;
-            f = 0; 
-            fl = 0;
-            pB = new byte[N * M];
-            Monitor.Enter(pB);
-            Monitor.Exit(pB);
+            this.elements = elements;
+            this.elementSize = elementSize;
+            ringBuffer = new byte[this.elements * this.elementSize];
+            Monitor.Enter(ringBuffer);
+            Monitor.Exit(ringBuffer);
         }
 
-
-        public int PutIfCan(byte[] pData)
+        /// <summary>
+        /// Puts a new data element into the ring buffer. If the buffer
+        /// is full(ie the get() has not been called for too long) an
+        /// error code 3 is returned and the data is not entered into
+        /// the buffer.
+        /// </summary>
+        public int TryPut(byte[] data)
         {
-            Jlock();
-            if (fl == 1) 
-            { 
-                Junlock(); 
-                return 3; 
+            Lock();
+            if (overflow)
+            {
+                Unlock();
+                return 3;
             }
-            i++; 
-            if (i == N) 
-                i = 0;
-            if (i == j) 
-                fl = 1;
-            Array.Copy(pData, 0, pB, M * i, M);
+            writePosition++;
+            if (writePosition == elements)
+                writePosition = 0;
+            if (writePosition == readPosition)
+                overflow = true;
+            Array.Copy(data, 0, ringBuffer, elementSize * writePosition, elementSize);
             f = 1;
-            Junlock();
+            Unlock();
             return 0;
         }
 
-        public void Put(byte[] pData)
+        /// <summary>
+        /// Puts a new data element into the ring buffer. If the buffer
+        /// is full(ie the get() has not been called for too long) then
+        /// the oldest data is overwritten.
+        /// </summary>
+        public void Put(byte[] data)
         {
-            Jlock();
-            i++; 
-            if (i == N) 
-                i = 0;
-            if (fl == 1) 
-            { 
-                j++; 
-                if (j == N) 
-                    j = 0; 
+            Lock();
+            writePosition++;
+            if (writePosition == elements)
+                writePosition = 0;
+            if (overflow)
+            {
+                readPosition++;
+                if (readPosition == elements)
+                    readPosition = 0;
             }
-            if (i == j) 
-                fl = 1;
-            Array.Copy(pData, 0, pB, M * i, M);
+            if (writePosition == readPosition)
+                overflow = true;
+            Array.Copy(data, 0, ringBuffer, elementSize * writePosition, elementSize);
             f = 1;
-            Junlock();
+            Unlock();
         }
-        public int PutIfDiff(byte[] pData)
+
+        /// <summary>
+        /// Puts anew data element into the ring buffera value 
+        /// if this element is different than the previous entry.
+        /// </summary>
+        public int PutIfDiff(byte[] data)
         {
             int ret = 1;
-            Jlock();
-            byte[] temp = new byte[M];
-            Array.Copy(pData, 0, temp, 0, M);
+            Lock();
+            byte[] temp = new byte[elementSize];
+            Array.Copy(data, 0, temp, 0, elementSize);
             bool Diff = false;
-            for (int j = 0; j < M; j++)
+            for (int j = 0; j < elementSize; j++)
             {
-                if (temp[j] != pB[j + i * M])
+                if (temp[j] != ringBuffer[j + writePosition * elementSize])
                 {
                     Diff = true;
                     break;
@@ -219,72 +235,91 @@ namespace RailDriver
             }
             if (Diff)
             {
-                i++; 
-                if (i == N) 
-                    i = 0;
-                if (fl == 1) 
-                { 
-                    j++; 
-                    if (j == N) 
-                        j = 0; 
+                writePosition++;
+                if (writePosition == elements)
+                    writePosition = 0;
+                if (overflow)
+                {
+                    readPosition++;
+                    if (readPosition == elements)
+                        readPosition = 0;
                 }
-                if (i == j) 
-                    fl = 1;
-                Array.Copy(pData, 0, pB, M * i, M);
+                if (writePosition == readPosition)
+                    overflow = true;
+                Array.Copy(data, 0, ringBuffer, elementSize * writePosition, elementSize);
                 f = 1;
                 ret = 0;
             }
-            Junlock();
+            Unlock();
             return ret;
         }
-        public int Get(byte[] pS)
+
+        /// <summary>
+        /// Gets the current element from the ring buffer.
+        /// </summary>
+        public int Get(byte[] data)
         {
-            Jlock();
-            if ((fl == 0) && (j == i)) 
-            { 
-                Junlock(); 
-                return 1; 
+            Lock();
+            if ((!overflow) && (readPosition == writePosition))
+            {
+                Unlock();
+                return 1;
             }
-            fl = 0;
-            j++; 
-            if (j == N) 
-                j = 0;
-            Array.Copy(pB, j * M, pS, 0, M);
-            Junlock();
+            overflow = false;
+            readPosition++;
+            if (readPosition == elements)
+                readPosition = 0;
+            Array.Copy(ringBuffer, readPosition * elementSize, data, 0, elementSize);
+            Unlock();
             return 0;
         }
 
-        public int Getlast(byte[] pS)
+        /// <summary>
+        /// Retrieves the most recently entered value
+        /// from the ring buffer without modifing the status
+        /// of the buffer. "getlast()" is not affected by the use
+        /// of get() and will retrive the same value over again
+        /// if put() has not been used in the intervening period.
+        /// </summary>
+        public int GetLast(byte[] data)
         {
-            Jlock();
-            if (f == 0) 
-            { 
-                Junlock(); 
-                return 2; 
+            Lock();
+            if (f == 0)
+            {
+                Unlock();
+                return 2;
             }
             //  memcpy(pS, pB + i * M, M);
-            Array.Copy(pB, i * M, pS, 0, M);
-            Junlock();
+            Array.Copy(ringBuffer, writePosition * elementSize, data, 0, elementSize);
+            Unlock();
             return 0;
         }
 
+        /// <summary>
+        /// Clears and initializes the ring buffer. After a call
+        /// to clear and before any calls to put() the get last
+        /// will return 2 (no data yet) and get will return 1 (no data).
+        /// </summary>
         public void Clear()
         {
-            Jlock();
-            i = 0; //offset to put element
-            j = 0; //offset to get element
+            Lock();
+            writePosition = 0; //offset to put element
+            readPosition = 0; //offset to get element
             f = 0; //flag for first time
-            fl = 0; //flag for overflow
-            Array.Clear(pB, 0, M * N);
-            Junlock();
+            overflow = false; //flag for overflow
+            Array.Clear(ringBuffer, 0, elementSize * elements);
+            Unlock();
         }
+
+        /// <summary>
+        ///  Returns true if calling get() would result in the return of no data.
+        /// </summary>
         public bool IsEmpty()
         {
-            Jlock();
-            bool a;
-            a = ((fl == 0) && (j == i));
-            Junlock();
-            return a;
+            Lock();
+            bool result = ((!overflow) && (readPosition == writePosition));
+            Unlock();
+            return result;
         }
     }
 }

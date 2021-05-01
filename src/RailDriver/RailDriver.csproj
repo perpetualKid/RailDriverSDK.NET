@@ -9,6 +9,7 @@ Implementing 32bit and 64bit support in a single version.</Description>
     <PackageId>RailDriver</PackageId>
     <Product>RailDriver SDK</Product>
     <PackageIcon>RailDriver.png</PackageIcon>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
   </PropertyGroup>
   <ItemGroup>
     <None Include="..\RailDriver.png">

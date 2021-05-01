@@ -234,7 +234,7 @@
             this.Controls.Add(this.listBox1);
             this.Controls.Add(this.CboDevices);
             this.Controls.Add(this.BtnEnumerate);
-            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
+            //this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Form1";
             this.Text = "C# RailDriver Sample";
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.Form1_FormClosed);
