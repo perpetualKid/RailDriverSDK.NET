@@ -5,6 +5,8 @@
     <UseWindowsForms>true</UseWindowsForms>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>RailDriver.Sample</PackageId>
+    <IsPackable>false</IsPackable>
+    <ApplicationIcon>RailDriver.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
   </PropertyGroup>
