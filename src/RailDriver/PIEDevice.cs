@@ -22,9 +22,9 @@ namespace RailDriver
         private IntPtr readFileH;
 
         private int errCodeR = 0;
-        private int errCodeRE = 0;
+        private int errCodeReadError = 0;
         private int errCodeW = 0;
-        private int errCodeWE = 0;
+        private int errCodeWriteError = 0;
         private bool holdDataThreadOpen = false;
         private bool holdErrorThreadOpen = false;
         private FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttrUnused = new FileIOApiDeclarations.SECURITY_ATTRIBUTES();
@@ -133,115 +133,34 @@ namespace RailDriver
         /// <summary>
         /// Translating error codes into messages
         /// </summary>
-        /// <param name="errNumb"></param>
+        /// <param name="error"></param>
         /// <returns></returns>
-        public static string GetErrorString(int errNumb)
+        public static string GetErrorString(int error)
         {
-            int[] EDS = new int[100];
-            string[] EDA = new string[100];
-            string st;
-
-            EDS[0] = 0; EDA[0] = "000 Success";
-
-            EDS[1] = 101; EDA[1] = "101 ";
-            EDS[2] = 102; EDA[2] = "102 ";
-            EDS[4] = 104; EDA[4] = "104 ";
-            EDS[5] = 105; EDA[5] = "105 ";
-            EDS[6] = 106; EDA[6] = "106 ";
-            EDS[7] = 107; EDA[7] = "107 ";
-            EDS[8] = 108; EDA[8] = "108 ";
-            EDS[9] = 109; EDA[9] = "109 ";
-            EDS[10] = 110; EDA[10] = "110 ";
-            EDS[11] = 111; EDA[11] = "111 ";
-            EDS[12] = 112; EDA[12] = "112 ";
-
-
-            EDS[13] = 201; EDA[13] = "201 ";
-            EDS[14] = 202; EDA[14] = "202 ";
-            EDS[53] = 203; EDA[53] = "203 Already Connected";
-            EDS[15] = 207; EDA[15] = "207 Cannot open read handle";
-            EDS[16] = 204; EDA[16] = "204 ";
-            EDS[17] = 205; EDA[17] = "205 ";
-            EDS[18] = 208; EDA[18] = "208 Cannot open write handle";
-            EDS[19] = 209; EDA[19] = "209 Cannot open either handle";
-            EDS[20] = 210; EDA[20] = "210 ";
-
-
-            EDS[21] = 301; EDA[21] = "301 Bad interface handle";
-            EDS[22] = 302; EDA[22] = "302 readSize is zero";
-            EDS[23] = 303; EDA[23] = "303 Interface not valid";
-            EDS[24] = 304; EDA[24] = "304 Ring buffer empty.";
-            EDS[25] = 305; EDA[25] = "305 ";
-            EDS[26] = 307; EDA[26] = "307 ";
-            EDS[27] = 308; EDA[27] = "308 Device disconnected";
-            EDS[28] = 309; EDA[28] = "309 Read error. ( unplugged )";
-            EDS[29] = 310; EDA[29] = "310 Bytes read not equal readSize";
-            EDS[30] = 311; EDA[30] = "311 dest.Length<ReportSize";
-
-
-            EDS[31] = 401; EDA[31] = "401 ";
-            EDS[32] = 402; EDA[32] = "402 Write length is zero";
-            EDS[33] = 403; EDA[33] = "403 wData.Length<ReportSize";
-            EDS[34] = 404; EDA[34] = "404 WriteBuffer full--retry";
-            EDS[35] = 405; EDA[35] = "405 No write buffer";
-            EDS[36] = 406; EDA[36] = "406 Interface not valid";
-            EDS[37] = 407; EDA[37] = "407 No writeBuffer";
-            EDS[38] = 408; EDA[38] = "408 Device disconnected";
-            EDS[55] = 409; EDA[55] = "409 Unknown write error";
-            EDS[56] = 410; EDA[56] = "410 byteCount != writeSize";
-            EDS[57] = 411; EDA[57] = "411 Timed out in write.";
-            EDS[58] = 412; EDA[58] = "412 Report ID error";
-            EDS[39] = 501; EDA[39] = "501 ";
-            EDS[40] = 502; EDA[40] = "502 Read length is zero";
-            EDS[41] = 503; EDA[41] = "503 dest.Length<ReportSize";
-            EDS[42] = 504; EDA[42] = "504 No data yet.";
-            EDS[43] = 507; EDA[43] = "507 Interface not valid.";
-
-            EDS[44] = 601; EDA[44] = "601 ";
-            EDS[45] = 602; EDA[45] = "602 ";
-
-
-            EDS[46] = 701; EDA[46] = "701 ";
-            EDS[47] = 702; EDA[47] = "702 Interface not valid";
-            EDS[48] = 703; EDA[48] = "703 Input ReportSize Zero";
-            EDS[49] = 704; EDA[49] = "704 Data Handler Already Exists";
-
-            EDS[50] = 801; EDA[50] = "801 ";
-            EDS[51] = 802; EDA[51] = "802 Interface not valid";
-            EDS[52] = 803; EDA[52] = "803 ";
-            EDS[54] = 804; EDA[54] = "804 Error Handler Already Exists";
-            st = "Unknown Error" + errNumb;
-            for (int i = 0; i < 59; i++)
-            {
-                if (EDS[i] == errNumb)
-                {
-                    st = EDA[i];
-                    break;
-                }
-            }
-            // Error = st;
-            return st;
+            if (!ErrorMessages.Messages.TryGetValue(error, out string message))
+                message = "Unknown Error" + error;
+            return message;
         }
 
         private void ErrorThread()
         {
             while (errorThreadActive)
             {
-                if (errCodeRE != 0)
+                if (errCodeReadError != 0)
                 {
                     holdDataThreadOpen = true;
-                    registeredErrorHandler.HandleHidError(this, errCodeRE);
+                    registeredErrorHandler.HandleHidError(this, errCodeReadError);
                     holdDataThreadOpen = false;
                 }
-                if (errCodeWE != 0)
+                if (errCodeWriteError != 0)
                 {
                     holdErrorThreadOpen = true;
-                    registeredErrorHandler.HandleHidError(this, errCodeWE);
+                    registeredErrorHandler.HandleHidError(this, errCodeWriteError);
                     holdErrorThreadOpen = false;
 
                 }
-                errCodeRE = 0;
-                errCodeWE = 0;
+                errCodeReadError = 0;
+                errCodeWriteError = 0;
                 Thread.Sleep(25);
             }
         }
@@ -261,20 +180,19 @@ namespace RailDriver
                 Internal = IntPtr.Zero,
                 InternalHigh = IntPtr.Zero
             };
-            if (WriteLength == 0) 
+            if (WriteLength == 0)
                 return;
 
             byte[] buffer = new byte[WriteLength];
-            GCHandle wgch = GCHandle.Alloc(buffer, GCHandleType.Pinned); //onur March 2009 - pinning is reuired
+            GCHandle wgch = GCHandle.Alloc(buffer, GCHandleType.Pinned); //onur March 2009 - pinning is required
 
             int byteCount = 0; ;
-            //  int loopCount = 0;
 
             errCodeW = 0;
-            errCodeWE = 0;
+            errCodeWriteError = 0;
             while (writeThreadActive)
             {
-                if (writeRing == null) { errCodeW = 407; errCodeWE = 407; goto Error; }
+                if (writeRing == null) { errCodeW = 407; errCodeWriteError = 407; goto Error; }
                 while (writeRing.Get((byte[])buffer) == 0)
                 {
                     if (0 == FileIOApiDeclarations.WriteFile(writeFileHandle, wgch.AddrOfPinnedObject(), WriteLength, ref byteCount, ref overlapped))
@@ -284,70 +202,43 @@ namespace RailDriver
                         //if ((result == FileIOApiDeclarations.ERROR_INVALID_HANDLE) ||
                         //    (result == FileIOApiDeclarations.ERROR_DEVICE_NOT_CONNECTED))
                         {
-                            if (result == 87) 
-                            { 
-                                errCodeW = 412; 
-                                errCodeWE = 412; 
+                            if (result == 87)
+                            {
+                                errCodeW = 412;
+                                errCodeWriteError = 412;
                             }
-                            else 
-                            { 
-                                errCodeW = result; 
-                                errCodeWE = 408; 
+                            else
+                            {
+                                errCodeW = result;
+                                errCodeWriteError = 408;
                             }
                             goto Error;
-                        }//if (result ==
+                        }
                         else
                         {
-                            // loopCount = 0;
-                            // while (writeThreadActive)
-                            // {
-
                             result = FileIOApiDeclarations.WaitForSingleObject(overlapEvent, 1000);
                             if (result == FileIOApiDeclarations.WAIT_OBJECT_0)
                             {
-                                // errCodeWE=1400+loopCount;
                                 goto WriteCompleted;
                             }
-                            //  loopCount++;
-                            //  if (loopCount > 10)
-                            // {
                             errCodeW = 411;
-                            errCodeWE = 411;
+                            errCodeWriteError = 411;
 
                             goto Error;
-
-                            //  }
-                            /*    if (0 == FileIOApiDeclarations.GetOverlappedResult(readFileHandle, ref overlapped, ref byteCount, 0))
-                                {
-                                    result = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
-                                    // if (result == ERROR_INVALID_HANDLE || result == ERROR_DEVICE_NOT_CONNECTED)
-                                    if (result != FileIOApiDeclarations.ERROR_IO_INCOMPLETE)
-                                    {
-                                        errCodeW = 409;
-                                        errCodeWE = 409;
-
-                                        goto Error;
-                                    }//if(result == ERROR_INVALID_HANDLE
-                                }//if(!GetOverlappedResult*/
-                            //  }//while
-                            //   goto Error;
-                        }//else if(result==ERROR_IO_PENDING){
-                         // continue;
+                        }
                     }
                     else
                     {
                         if ((long)byteCount != WriteLength)
                         {
                             errCodeW = 410;
-                            errCodeWE = 410;
+                            errCodeWriteError = 410;
                         }
-                        //iface->errCodeWE=1399;
                     }
                 WriteCompleted:;
-                }//while(get==
+                }
                 _ = FileIOApiDeclarations.WaitForSingleObject(writeEvent, 100);
                 _ = FileIOApiDeclarations.ResetEvent(writeEvent);
-                // System.Threading.Thread.Sleep(100);
             }
         Error:
             wgch.Free(); //onur
@@ -370,11 +261,11 @@ namespace RailDriver
             if (ReadLength == 0)
             {
                 errCodeR = 302;
-                errCodeRE = 302;
+                errCodeReadError = 302;
                 return;
             }
             errCodeR = 0;
-            errCodeRE = 0;
+            errCodeReadError = 0;
 
             byte[] buffer = new byte[ReadLength];
             GCHandle gch = GCHandle.Alloc(buffer, GCHandleType.Pinned); //onur March 2009 - pinning is required
@@ -383,10 +274,10 @@ namespace RailDriver
             {
 
                 int dataRead = 0;//FileIOApiDeclarations.
-                if (readFileHandle.IsInvalid) 
-                { 
-                    errCodeRE = errCodeR = 320; 
-                    goto EXit; 
+                if (readFileHandle.IsInvalid)
+                {
+                    errCodeReadError = errCodeR = 320;
+                    goto EXit;
                 }
 
                 if (0 == FileIOApiDeclarations.ReadFile(readFileHandle, gch.AddrOfPinnedObject(), ReadLength, ref dataRead, ref overlapped)) //ref readFileBuffer[0]
@@ -394,9 +285,9 @@ namespace RailDriver
                     int result = Marshal.GetLastWin32Error();
                     if (result != FileIOApiDeclarations.ERROR_IO_PENDING) //|| result == FileIOApiDeclarations.ERROR_DEVICE_NOT_CONNECTED)
                     {
-                        if (readFileHandle.IsInvalid) { errCodeRE = errCodeR = 321; goto EXit; }
+                        if (readFileHandle.IsInvalid) { errCodeReadError = errCodeR = 321; goto EXit; }
                         errCodeR = result;
-                        errCodeRE = 308;
+                        errCodeReadError = 308;
                         goto EXit;
                     }
                     else //if (result != .ERROR_IO_PENDING)
@@ -415,7 +306,7 @@ namespace RailDriver
                                     {
 
                                         errCodeR = 309;
-                                        errCodeRE = 309;
+                                        errCodeReadError = 309;
                                         goto EXit;
 
                                     }
@@ -430,7 +321,7 @@ namespace RailDriver
                 }
             //buffer[0] = 90;
             ReadCompleted:
-                if (dataRead != ReadLength) { errCodeR = 310; errCodeRE = 310; goto EXit; }
+                if (dataRead != ReadLength) { errCodeR = 310; errCodeReadError = 310; goto EXit; }
 
                 if (SuppressDuplicateReports)
                 {
@@ -457,10 +348,9 @@ namespace RailDriver
         {
             byte[] currBuff = new byte[ReadLength];
 
-
             while (dataThreadActive)
             {
-                if (readRing == null) 
+                if (readRing == null)
                     return;
                 if (!CallNever)
                 {
@@ -558,11 +448,11 @@ namespace RailDriver
             }
             connected = true;
         ErrorOut:
-            if ((retin == 0) && (retout == 0)) 
+            if ((retin == 0) && (retout == 0))
                 return 0;
-            if ((retin == 207) && (retout == 208)) 
+            if ((retin == 207) && (retout == 208))
                 return 209;
-            else 
+            else
                 return retin + retout;
 
         }
@@ -670,9 +560,9 @@ namespace RailDriver
         /// <returns></returns>
         public int SetDataCallback(IDataHandler handler)
         {
-            if (!connected) 
+            if (!connected)
                 return 702;
-            if (ReadLength == 0) 
+            if (ReadLength == 0)
                 return 703;
 
             if (registeredDataHandler == null)
@@ -700,7 +590,7 @@ namespace RailDriver
         /// <returns></returns>
         public int SetErrorCallback(IErrorHandler handler)
         {
-            if (!connected) 
+            if (!connected)
                 return 802;
 
             if (registeredErrorHandler == null)
@@ -728,15 +618,15 @@ namespace RailDriver
         /// <returns></returns>
         public int ReadLast(ref byte[] dest)
         {
-            if (ReadLength == 0) 
+            if (ReadLength == 0)
                 return 502;
-            if (!connected) 
+            if (!connected)
                 return 507;
-            if (dest == null) 
+            if (dest == null)
                 dest = new byte[ReadLength];
-            if (dest.Length < ReadLength) 
+            if (dest.Length < ReadLength)
                 return 503;
-            if (readRing.GetLast(dest) != 0) 
+            if (readRing.GetLast(dest) != 0)
                 return 504;
             return 0;
         }
@@ -748,13 +638,13 @@ namespace RailDriver
         /// <returns></returns>
         public int ReadData(ref byte[] dest)
         {
-            if (!connected) 
+            if (!connected)
                 return 303;
-            if (dest == null) 
+            if (dest == null)
                 dest = new byte[ReadLength];
-            if (dest.Length < ReadLength) 
+            if (dest.Length < ReadLength)
                 return 311;
-            if (readRing.Get(dest) != 0) 
+            if (readRing.Get(dest) != 0)
                 return 304;
             return 0;
         }
@@ -787,15 +677,15 @@ namespace RailDriver
         /// <returns></returns>
         public int WriteData(byte[] wData)
         {
-            if (WriteLength == 0) 
+            if (WriteLength == 0)
                 return 402;
-            if (!connected) 
+            if (!connected)
                 return 406;
-            if (wData.Length < WriteLength) 
+            if (wData.Length < WriteLength)
                 return 403;
-            if (writeRing == null) 
+            if (writeRing == null)
                 return 405;
-            if (errCodeW != 0) 
+            if (errCodeW != 0)
                 return errCodeW;
             if (writeRing.TryPut(wData) == 3)
             {
@@ -921,7 +811,7 @@ namespace RailDriver
                                     }
                                 }
 
-                                devices.AddLast(new PIEDevice(path, hidAttributes.VendorID, hidAttributes.ProductID, hidAttributes.VersionNumber, hidCaps.Usage, 
+                                devices.AddLast(new PIEDevice(path, hidAttributes.VendorID, hidAttributes.ProductID, hidAttributes.VersionNumber, hidCaps.Usage,
                                     hidCaps.UsagePage, hidCaps.InputReportByteLength, hidCaps.OutputReportByteLength, ssss, psss));
                             }
 
