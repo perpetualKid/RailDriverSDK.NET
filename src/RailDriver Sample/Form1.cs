@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Windows.Forms;
 
 using RailDriver;
@@ -7,16 +8,15 @@ namespace RailDriver.Sample
 {
     public partial class Form1 : Form, IDataHandler, IErrorHandler
     {
-        PIEDevice[] devices;
-
-        int[] cbotodevice = null; //for each item in the CboDevice list maps this index to the device index.  Max devices =100 
-        byte[] wData = null; //write data buffer
-        int selecteddevice = -1; //set to the index of CboDevice
+        private IList<PIEDevice> devices;
+        private int[] cbotodevice = null; //for each item in the CboDevice list maps this index to the device index.  Max devices =100 
+        private byte[] wData = null; //write data buffer
+        private int selecteddevice = -1; //set to the index of CboDevice
 
         //for thread-safe way to call a Windows Forms control
         // This delegate enables asynchronous calls for setting
         // the text property on a TextBox control.
-        delegate void SetTextCallback(string text);
+        private delegate void SetTextCallback(string text);
         //end thread-safe
 
 
@@ -31,7 +31,7 @@ namespace RailDriver.Sample
             cbotodevice = new int[128]; //128=max # of devices
             //enumerate and setupinterfaces for all devices
             devices = PIEDevice.EnumeratePIE();
-            if (devices.Length == 0)
+            if (devices.Count == 0)
             {
                 toolStripStatusLabel1.Text = "No Devices Found";
             }
@@ -39,7 +39,7 @@ namespace RailDriver.Sample
             {
                 //System.Media.SystemSounds.Beep.Play(); 
                 int cbocount = 0; //keeps track of how many valid devices were added to the CboDevice box
-                for (int i = 0; i < devices.Length; i++)
+                for (int i = 0; i < devices.Count; i++)
                 {
                     //information about device
                     //PID = devices[i].Pid);
@@ -95,6 +95,7 @@ namespace RailDriver.Sample
             selecteddevice = cbotodevice[CboDevices.SelectedIndex];
             wData = new byte[devices[selecteddevice].WriteLength];//size write array 
         }
+
         private void BtnCallback_Click(object sender, EventArgs e)
         {
             //setup callback if there are devices found for each device found
@@ -111,15 +112,16 @@ namespace RailDriver.Sample
 
             }
         }
+
         //data callback    
-        public void HandleHidData(Byte[] data, PIEDevice sourceDevice, int error)
+        public void HandleHidData(byte[] data, PIEDevice sourceDevice, int error)
         {
             //check the sourceDevice and make sure it is the same device as selected in CboDevice   
             if (sourceDevice == devices[selecteddevice])
             {
 
                 //write raw data to listbox1
-                String output = "Callback: " + sourceDevice.Pid + ", ID: " + selecteddevice.ToString() + ", data=";
+                string output = "Callback: " + sourceDevice.Pid + ", ID: " + selecteddevice.ToString() + ", data=";
                 for (int i = 0; i < sourceDevice.ReadLength; i++)
                 {
                     output = output + data[i].ToString() + "  ";
@@ -132,14 +134,14 @@ namespace RailDriver.Sample
                 //Wiper = rdata[6]
                 //Lights = rdata[7]
                 //buttons = rdata[8] to rdata[13]
-                this.SetListBox(output);
+                SetListBox(output);
             }
 
         }
         //error callback
-        public void HandleHidError(PIEDevice sourceDevice, Int32 error)
+        public void HandleHidError(PIEDevice sourceDevice, int error)
         {
-            this.SetToolStrip("Error: " + error.ToString());
+            SetToolStrip("Error: " + error.ToString());
         }
 
         //for threadsafe setting of Windows Forms control
@@ -148,31 +150,32 @@ namespace RailDriver.Sample
             // InvokeRequired required compares the thread ID of the
             // calling thread to the thread ID of the creating thread.
             // If these threads are different, it returns true.
-            if (this.listBox1.InvokeRequired)
+            if (listBox1.InvokeRequired)
             {
                 SetTextCallback d = new SetTextCallback(SetListBox);
-                this.Invoke(d, new object[] { text });
+                Invoke(d, new object[] { text });
             }
             else
             {
-                this.listBox1.Items.Add(text);
-                this.listBox1.SelectedIndex = this.listBox1.Items.Count - 1;
+                listBox1.Items.Add(text);
+                listBox1.SelectedIndex = listBox1.Items.Count - 1;
             }
         }
+
         //for threadsafe setting of Windows Forms control
         private void SetToolStrip(string text)
         {
             // InvokeRequired required compares the thread ID of the
             // calling thread to the thread ID of the creating thread.
             // If these threads are different, it returns true.
-            if (this.statusStrip1.InvokeRequired)
+            if (statusStrip1.InvokeRequired)
             {
                 SetTextCallback d = new SetTextCallback(SetToolStrip);
-                this.Invoke(d, new object[] { text });
+                Invoke(d, new object[] { text });
             }
             else
             {
-                this.toolStripStatusLabel1.Text = text;
+                toolStripStatusLabel1.Text = text;
             }
         }
 
@@ -192,9 +195,9 @@ namespace RailDriver.Sample
                 }
 
                 wData[1] = 134;
-                wData[2] = (byte)(Convert.ToInt16(textBox1.Text));
-                wData[3] = (byte)(Convert.ToInt16(textBox2.Text));
-                wData[4] = (byte)(Convert.ToInt16(textBox3.Text));
+                wData[2] = byte.Parse(textBox1.Text);
+                wData[3] = byte.Parse(textBox2.Text);
+                wData[4] = byte.Parse(textBox3.Text);
                 int result = 404;
                 while (result == 404) { result = devices[selecteddevice].WriteData(wData); }
                 if (result != 0)
@@ -268,7 +271,7 @@ namespace RailDriver.Sample
             }
         }
 
-        private void timer1_Tick(object sender, EventArgs e)
+        private void Timer1_Tick(object sender, EventArgs e)
         {
             System.Media.SystemSounds.Beep.Play();
         }

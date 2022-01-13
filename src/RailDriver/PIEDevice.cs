@@ -39,8 +39,6 @@ namespace RailDriver
         private bool writeThreadActive = false;
         private bool dataThreadActive = false;
         private bool errorThreadActive = false;
-        private static readonly ushort[] convertToSplatModeSausages = { 7, 5, 4, 3, 2, 1 };
-        private static readonly ushort[] ledSausages = { 7, 3, 1, 6, 4, 2 };
 
         /// <summary>
         /// Device Path
@@ -115,7 +113,7 @@ namespace RailDriver
         /// <param name="writeSize"></param>
         /// <param name="manufacturersString"></param>
         /// <param name="productString"></param>
-        public PIEDevice(string path, int vid, int pid, int version, int hidUsage, int hidUsagePage, int readSize, int writeSize, string manufacturersString, string productString)
+        private PIEDevice(string path, int vid, int pid, int version, int hidUsage, int hidUsagePage, int readSize, int writeSize, string manufacturersString, string productString)
         {
             Path = path;
             Vid = vid;
@@ -701,7 +699,7 @@ namespace RailDriver
         /// Enumerates all valid PIE USB devics.
         /// </summary>
         /// <returns>list of all devices found, ordered by USB port connection</returns>
-        public static PIEDevice[] EnumeratePIE()
+        public static IList<PIEDevice> EnumeratePIE()
         {
             return EnumeratePIE(0x05F3);
         }
@@ -710,11 +708,11 @@ namespace RailDriver
         /// Enumerates all valid USB devics of the specified Vid.
         /// </summary>
         /// <returns>list of all devices found, ordered by USB port connection</returns>
-        public static PIEDevice[] EnumeratePIE(int vid)
+        public static IList<PIEDevice> EnumeratePIE(int vid)
         {
 
             // FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttrUnusedE = new FileIOApiDeclarations.SECURITY_ATTRIBUTES();  
-            LinkedList<PIEDevice> devices = new LinkedList<PIEDevice>();
+            List<PIEDevice> devices = new List<PIEDevice>();
 
             // Get all device paths
             Guid guid = Guid.Empty;
@@ -726,7 +724,7 @@ namespace RailDriver
             DeviceManagementApiDeclarations.SP_DEVICE_INTERFACE_DATA deviceInterfaceData = new DeviceManagementApiDeclarations.SP_DEVICE_INTERFACE_DATA();
             deviceInterfaceData.Size = Marshal.SizeOf(deviceInterfaceData); //28;
 
-            LinkedList<string> paths = new LinkedList<string>();
+            List<string> paths = new List<string>();
 
             for (int i = 0; 0 != DeviceManagementApiDeclarations.SetupDiEnumDeviceInterfaces(deviceInfoSet, 0, ref guid, i, ref deviceInterfaceData); i++)
             {
@@ -743,7 +741,7 @@ namespace RailDriver
                 if (DeviceManagementApiDeclarations.SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref deviceInterfaceData, detailBuffer, buffSize, ref buffSize, IntPtr.Zero))
                 {
                     // convert buffer (starting past the cbsize variable) to string path
-                    paths.AddLast(Marshal.PtrToStringAuto(detailBuffer + 4));
+                    paths.Add(Marshal.PtrToStringAuto(detailBuffer + 4));
                 }
             }
             _ = DeviceManagementApiDeclarations.SetupDiDestroyDeviceInfoList(deviceInfoSet);
@@ -756,11 +754,10 @@ namespace RailDriver
             };
             securityAttributes.nLength = Marshal.SizeOf(securityAttributes);
 
-            for (LinkedList<string>.Enumerator en = paths.GetEnumerator(); en.MoveNext();)
+            foreach (string devicePath in paths)
             {
-                string path = en.Current;
 
-                IntPtr fileH = FileIOApiDeclarations.CreateFile(path, FileIOApiDeclarations.GENERIC_WRITE,
+                IntPtr fileH = FileIOApiDeclarations.CreateFile(devicePath, FileIOApiDeclarations.GENERIC_WRITE,
                     FileIOApiDeclarations.FILE_SHARE_READ | FileIOApiDeclarations.FILE_SHARE_WRITE,
                     IntPtr.Zero, FileIOApiDeclarations.OPEN_EXISTING, 0, 0);
                 SafeFileHandle fileHandle = new SafeFileHandle(fileH, true);
@@ -811,7 +808,7 @@ namespace RailDriver
                                     }
                                 }
 
-                                devices.AddLast(new PIEDevice(path, hidAttributes.VendorID, hidAttributes.ProductID, hidAttributes.VersionNumber, hidCaps.Usage,
+                                devices.Add(new PIEDevice(devicePath, hidAttributes.VendorID, hidAttributes.ProductID, hidAttributes.VersionNumber, hidCaps.Usage,
                                     hidCaps.UsagePage, hidCaps.InputReportByteLength, hidCaps.OutputReportByteLength, ssss, psss));
                             }
 
@@ -827,74 +824,7 @@ namespace RailDriver
                     fileHandle.Close();
                 }
             }
-            PIEDevice[] ret = new PIEDevice[devices.Count];
-            devices.CopyTo(ret, 0);
-            return ret;
+            return devices;
         }
-
-        private int SendSausageCommands(ushort[] commandSequence)
-        {
-            if (WriteLength != 2 || HidUsagePage != 1 || HidUsage != 6) // hid page 1, usage 6 is keyboard
-            {
-                return 1302;
-            }
-
-            FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttributes = new FileIOApiDeclarations.SECURITY_ATTRIBUTES
-            {
-                lpSecurityDescriptor = IntPtr.Zero,
-                bInheritHandle = Convert.ToInt32(true)
-            };
-            securityAttributes.nLength = Marshal.SizeOf(securityAttributes);
-
-            IntPtr hF = FileIOApiDeclarations.CreateFile(Path,
-                FileIOApiDeclarations.GENERIC_WRITE,
-                FileIOApiDeclarations.FILE_SHARE_READ | FileIOApiDeclarations.FILE_SHARE_WRITE,
-                 IntPtr.Zero,
-                FileIOApiDeclarations.OPEN_EXISTING,
-                0,
-                0);
-            SafeFileHandle hFile = new SafeFileHandle(hF, true);
-            if (hFile.IsInvalid)
-            {
-                return 1301; ;
-            }
-            FileIOApiDeclarations.OVERLAPPED overlapped = new FileIOApiDeclarations.OVERLAPPED
-            {
-                hEvent = IntPtr.Zero,
-                Offset = 0,  // IntPtr.Zero;
-                OffsetHigh = 0// IntPtr.Zero;
-            };
-            foreach (ushort command in commandSequence)
-            {
-                uint cmd = ((uint)command) << 16;
-                uint bytesReturned = 0;
-
-                if (!DeviceManagementApiDeclarations.DeviceIoControl(hFile, (uint)0x000b0008, ref cmd, 4, IntPtr.Zero, 0, ref bytesReturned, ref overlapped))
-                {
-                    return Marshal.GetLastWin32Error();
-                }
-            }
-            hFile.Close();
-            return 0;
-        }
-
-        /// <summary>
-        /// ???
-        /// </summary>
-        /// <returns></returns>
-        public int ConvertToSplatMode()
-        {
-            return SendSausageCommands(convertToSplatModeSausages);
-        }
-
-        /// <summary>
-        /// ???
-        /// </summary>
-        /// <returns></returns>
-        public int SendLEDSausage()
-        {
-            return SendSausageCommands(ledSausages);
-        }
-
     }
 }
