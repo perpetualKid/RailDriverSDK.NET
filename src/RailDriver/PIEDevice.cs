@@ -22,23 +22,12 @@ namespace RailDriver
         private SafeFileHandle writeFileHandle;
         private IDataHandler registeredDataHandler = null;
         private IErrorHandler registeredErrorHandler = null;
-        private IntPtr readFileH;
 
-        private int errCodeR = 0;
         private int errCodeReadError = 0;
-        private int errCodeW = 0;
         private int errCodeWriteError = 0;
-        private bool holdDataThreadOpen = false;
-        private bool holdErrorThreadOpen = false;
-        private readonly ManualResetEventSlim writeEvent = new ManualResetEventSlim(false);
-        private readonly ManualResetEventSlim readEvent = new ManualResetEventSlim(false);
-
-        private Thread dataThreadHandle;
-        private Thread errorThreadHandle;
-        private bool readThreadActive = false;
-        private bool writeThreadActive = false;
-        private bool dataThreadActive = false;
-        private bool errorThreadActive = false;
+        private readonly AsyncManualResetEvent writeEvent = new AsyncManualResetEvent();
+        private readonly AsyncManualResetEvent readEvent = new AsyncManualResetEvent();
+        private CancellationTokenSource cts;
 
         /// <summary>
         /// Device Path
@@ -139,26 +128,22 @@ namespace RailDriver
             return message;
         }
 
-        private void ErrorThread()
+        private async Task ErrorEvent()
         {
-            while (errorThreadActive)
+            while (!cts.IsCancellationRequested)
             {
                 if (errCodeReadError != 0)
                 {
-                    holdDataThreadOpen = true;
                     registeredErrorHandler.HandleHidError(this, errCodeReadError);
-                    holdDataThreadOpen = false;
                 }
                 if (errCodeWriteError != 0)
                 {
-                    holdErrorThreadOpen = true;
                     registeredErrorHandler.HandleHidError(this, errCodeWriteError);
-                    holdErrorThreadOpen = false;
-
                 }
                 errCodeReadError = 0;
                 errCodeWriteError = 0;
-                Thread.Sleep(25);
+
+                await Task.Delay(25);
             }
         }
 
@@ -167,27 +152,27 @@ namespace RailDriver
             byte[] buffer = new byte[ReadLength];
             if (ReadLength == 0)
             {
-                errCodeR = errCodeReadError = 302;
+                errCodeReadError = 302;
                 return;
             }
             if (readRing == null)
             {
-                errCodeW = errCodeWriteError = 307;
+                errCodeReadError = 307;
                 return;
             }
 
             using (FileStream deviceRead = new FileStream(readFileHandle, FileAccess.Read, ReadLength, true))
             {
-                while (readThreadActive)
+                while (!cts.IsCancellationRequested)
                 {
                     if (readFileHandle.IsInvalid)
                     {
-                        errCodeReadError = errCodeR = 301;
+                        errCodeReadError = 301;
                         break;
                     }
                     try
                     {
-                        if (await deviceRead.ReadAsync(buffer, 0, ReadLength).ConfigureAwait(false) == ReadLength)
+                        if (await deviceRead.ReadAsync(buffer, 0, ReadLength, cts.Token).ConfigureAwait(false) == ReadLength)
                         {
                             if (SuppressDuplicateReports)
                             {
@@ -202,15 +187,18 @@ namespace RailDriver
                         }
                         else
                         {
-                            errCodeR = errCodeReadError = 310;
+                            errCodeReadError = 310;
                             break;
                         }
                     }
                     catch (IOException)
                     {
-                        errCodeR = errCodeReadError = 309;
+                        errCodeReadError = 309;
+                        connected = false;
                         break;
                     }
+                    catch (OperationCanceledException)
+                    { }
                 }
             }
         }
@@ -220,64 +208,70 @@ namespace RailDriver
             byte[] buffer = new byte[WriteLength];
             if (WriteLength == 0)
             {
-                errCodeR = errCodeReadError = 402;
+                errCodeReadError = 402;
                 return;
             }
             if (writeRing == null)
             {
-                errCodeW = errCodeWriteError = 407;
+                errCodeWriteError = 407;
                 return;
             }
 
             using (FileStream deviceWrite = new FileStream(writeFileHandle, FileAccess.Write, WriteLength, true))
             {
-                while (writeThreadActive)
+                while (!cts.IsCancellationRequested)
                 {
-                    while (writeRing.Get(buffer))
+                    try
                     {
-                        if (writeFileHandle.IsInvalid)
+                        await writeEvent.WaitAsync(cts.Token).ConfigureAwait(false);
+                        while (writeRing.Get(buffer))
                         {
-                            errCodeReadError = errCodeR = 401;
-                            return;
+                            if (writeFileHandle.IsInvalid)
+                            {
+                                errCodeReadError = 401;
+                                return;
+                            }
+                            await deviceWrite.WriteAsync(buffer, 0, WriteLength, cts.Token).ConfigureAwait(false);
                         }
-                        await deviceWrite.WriteAsync(buffer, 0, WriteLength).ConfigureAwait(false);
+                        writeEvent.Reset();
                     }
-                    writeEvent.Wait(100);
-                    writeEvent.Reset();
+                    catch (IOException)
+                    {
+                        errCodeWriteError = 409;
+                        connected = false;
+                        break;
+                    }
+                    catch (OperationCanceledException)
+                    { }
                 }
             }
         }
 
-        private void DataEventThread()
+        private async Task DataEvent()
         {
-            byte[] currBuff = new byte[ReadLength];
+            byte[] buffer = new byte[ReadLength];
 
-            while (dataThreadActive)
+            if (readRing == null)
+                return;
+
+            while (!cts.IsCancellationRequested)
             {
-                if (readRing == null)
-                    return;
+                await readEvent.WaitAsync(cts.Token).ConfigureAwait(false);
                 if (!CallNever)
                 {
-                    if (errCodeR != 0)
+                    if (errCodeReadError != 0)
                     {
-                        Array.Clear(currBuff, 0, ReadLength);
-                        holdDataThreadOpen = true;
-                        registeredDataHandler.HandleHidData(currBuff, this, errCodeR);
-                        holdDataThreadOpen = false;
-                        dataThreadActive = false;
+                        Array.Clear(buffer, 0, ReadLength);
+                        registeredDataHandler.HandleHidData(buffer, this, errCodeReadError);
                     }
-                    else if (readRing.Get(currBuff))
+                    else if (readRing.Get(buffer))
                     {
-                        holdDataThreadOpen = true;
-                        registeredDataHandler.HandleHidData(currBuff, this, 0);
-                        holdDataThreadOpen = false;
+                        registeredDataHandler.HandleHidData(buffer, this, 0);
                     }
                     if (readRing.IsEmpty())
                         readEvent.Reset();
                 }
-                readEvent.Wait(100);
             }
-            return;
         }
 
         //-----------------------------------------------------------------------------
@@ -292,10 +286,17 @@ namespace RailDriver
             int retin = 0;
             int retout = 0;
 
+            if (null != cts)
+            {
+                cts.Cancel();
+                cts.Dispose();
+            }
+            cts = new CancellationTokenSource();
+
             if (connected) return 203;
             if (ReadLength > 0)
             {
-                readFileH = FileIOApiDeclarations.CreateFile(Path, FileIOApiDeclarations.GENERIC_READ,
+                IntPtr readFileH = FileIOApiDeclarations.CreateFile(Path, FileIOApiDeclarations.GENERIC_READ,
                     FileIOApiDeclarations.FILE_SHARE_READ | FileIOApiDeclarations.FILE_SHARE_WRITE,
                     IntPtr.Zero, FileIOApiDeclarations.OPEN_EXISTING, FileIOApiDeclarations.FILE_FLAG_OVERLAPPED, 0);
 
@@ -308,7 +309,6 @@ namespace RailDriver
                 else
                 {
                     readRing = new RingBuffer(128, ReadLength);
-                    readThreadActive = true;
                     _ = Task.Run(() => ReadFromHid());
                 }
             }
@@ -329,7 +329,6 @@ namespace RailDriver
                 else
                 {
                     writeRing = new RingBuffer(128, WriteLength);
-                    writeThreadActive = true;
                     _ = Task.Run(() => WriteToHid());
                 }
             }
@@ -350,40 +349,7 @@ namespace RailDriver
         /// </summary>
         public void CloseInterface()
         {
-            if ((holdErrorThreadOpen) || (holdDataThreadOpen)) return;
-
-            // Shut down event thread
-            if (dataThreadActive)
-            {
-                dataThreadActive = false;
-                readEvent.Set();
-            }
-
-            // Shut down read thread
-            if (readThreadActive)
-            {
-                readThreadActive = false;
-            }
-            if (writeThreadActive)
-            {
-                writeThreadActive = false;
-                writeEvent.Set();
-            }
-            if (errorThreadActive)
-            {
-                errorThreadActive = false;
-                if (errorThreadHandle != null)
-                {
-                    int n = 0;
-                    while (errorThreadHandle.IsAlive)
-                    {
-                        Thread.Sleep(10);
-                        n++;
-                        if (n == 10) { errorThreadHandle.Abort(); break; }
-                    }
-                    errorThreadHandle = null;
-                }
-            }
+            cts.Cancel();
 
             writeRing = null;
             readRing = null;
@@ -413,15 +379,10 @@ namespace RailDriver
                 return 703;
 
             if (registeredDataHandler == null)
-            {//registeredDataHandler is not defined so define it and create thread. 
+            {
+                //registeredDataHandler is not defined so define it and create thread. 
                 registeredDataHandler = handler;
-                dataThreadHandle = new Thread(new ThreadStart(DataEventThread))
-                {
-                    IsBackground = true,
-                    Name = $"PIEHidEventThread for {Pid}"
-                };
-                dataThreadActive = true;
-                dataThreadHandle.Start();
+                _ = DataEvent().ConfigureAwait(false);
             }
             else
             {
@@ -444,13 +405,7 @@ namespace RailDriver
             {
                 //registeredErrorHandler is not defined so define it and create thread. 
                 registeredErrorHandler = handler;
-                errorThreadHandle = new Thread(new ThreadStart(ErrorThread))
-                {
-                    IsBackground = true,
-                    Name = $"PIEHidErrorThread for {Pid}"
-                };
-                errorThreadActive = true;
-                errorThreadHandle.Start();
+                _ = ErrorEvent().ConfigureAwait(false);
             }
             else
             {
@@ -521,23 +476,22 @@ namespace RailDriver
         /// <summary>
         /// Writing to the device
         /// </summary>
-        /// <param name="wData"></param>
+        /// <param name="buffer"></param>
         /// <returns></returns>
-        public int WriteData(byte[] wData)
+        public int WriteData(byte[] buffer)
         {
             if (WriteLength == 0)
                 return 402;
             if (!connected)
                 return 406;
-            if (wData.Length < WriteLength)
+            if (buffer.Length < WriteLength)
                 return 403;
             if (writeRing == null)
                 return 405;
-            if (errCodeW != 0)
-                return errCodeW;
-            if (writeRing.TryPut(wData) == 3)
+            if (errCodeWriteError != 0)
+                return errCodeWriteError;
+            if (!writeRing.TryPut(buffer))
             {
-                Thread.Sleep(1);
                 return 404;
             }
             writeEvent.Set();

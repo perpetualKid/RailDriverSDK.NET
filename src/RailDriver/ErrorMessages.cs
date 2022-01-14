@@ -50,7 +50,7 @@ namespace RailDriver
             { 406, "406 Interface not valid" },
             { 407, "407 No writeBuffer" },
             { 408, "408 Device disconnected" },
-            { 409, "409 Unknown write error" },
+            { 409, "409 Write error. ( unplugged )" },
             { 410, "410 byteCount != writeSize" },
             { 411, "411 Timed out in write." },
             { 412, "412 Report ID error" },

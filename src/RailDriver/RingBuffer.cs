@@ -167,17 +167,17 @@ namespace RailDriver
 
         /// <summary>
         /// Puts a new data element into the ring buffer. If the buffer
-        /// is full(ie the get() has not been called for too long) an
-        /// error code 3 is returned and the data is not entered into
+        /// is full(ie the get() has not been called for too long) the result
+        /// will be false and the data is not entered into
         /// the buffer.
         /// </summary>
-        public int TryPut(byte[] data)
+        public bool TryPut(byte[] data)
         {
             Lock();
             if (overflow)
             {
                 Unlock();
-                return 3;
+                return false;
             }
             writePosition++;
             if (writePosition == elementCount)
@@ -187,7 +187,7 @@ namespace RailDriver
             data.CopyTo(ringBuffer, elementSize * writePosition);
             noData = false;
             Unlock();
-            return 0;
+            return true;
         }
 
         /// <summary>
