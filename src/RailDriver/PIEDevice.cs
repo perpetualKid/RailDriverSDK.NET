@@ -27,9 +27,8 @@ namespace RailDriver
         private int errCodeWriteError = 0;
         private bool holdDataThreadOpen = false;
         private bool holdErrorThreadOpen = false;
-        private FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttrUnused = new FileIOApiDeclarations.SECURITY_ATTRIBUTES();
-        private IntPtr readEvent;
-        private IntPtr writeEvent;
+        private readonly ManualResetEvent writeEvent = new ManualResetEvent(false);
+        private readonly ManualResetEvent readEvent = new ManualResetEvent(false);
 
         private Thread readThreadHandle;
         private Thread dataThreadHandle;
@@ -125,7 +124,6 @@ namespace RailDriver
             WriteLength = writeSize;
             ManufacturersString = manufacturersString;
             ProductString = productString;
-            securityAttrUnused.bInheritHandle = 1;
         }
 
         /// <summary>
@@ -168,13 +166,12 @@ namespace RailDriver
         /// </summary>
         private void WriteThread()
         {
-            //   FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttrUnused = new FileIOApiDeclarations.SECURITY_ATTRIBUTES();
-            IntPtr overlapEvent = FileIOApiDeclarations.CreateEvent(ref securityAttrUnused, 1, 0, "");
+            ManualResetEvent overlapEvent = new ManualResetEvent(false);
             FileIOApiDeclarations.OVERLAPPED overlapped = new FileIOApiDeclarations.OVERLAPPED
             {
                 Offset = 0,
                 OffsetHigh = 0,
-                hEvent = overlapEvent,
+                hEvent = overlapEvent.SafeWaitHandle.DangerousGetHandle(),
                 Internal = IntPtr.Zero,
                 InternalHigh = IntPtr.Zero
             };
@@ -214,8 +211,7 @@ namespace RailDriver
                         }
                         else
                         {
-                            result = FileIOApiDeclarations.WaitForSingleObject(overlapEvent, 1000);
-                            if (result == FileIOApiDeclarations.WAIT_OBJECT_0)
+                            if (overlapEvent.WaitOne(1000))
                             {
                                 goto WriteCompleted;
                             }
@@ -235,24 +231,22 @@ namespace RailDriver
                     }
                 WriteCompleted:;
                 }
-                _ = FileIOApiDeclarations.WaitForSingleObject(writeEvent, 100);
-                _ = FileIOApiDeclarations.ResetEvent(writeEvent);
+                writeEvent.WaitOne(100);
+                writeEvent.Reset();
             }
         Error:
             wgch.Free(); //onur
-
-            return;
+            overlapEvent.Close();
         }
 
         private void ReadThread()
         {
-
-            IntPtr overlapEvent = FileIOApiDeclarations.CreateEvent(ref securityAttrUnused, 1, 0, "");
+            ManualResetEvent overlapEvent = new ManualResetEvent(false);
             FileIOApiDeclarations.OVERLAPPED overlapped = new FileIOApiDeclarations.OVERLAPPED
             {
                 Offset = 0,
                 OffsetHigh = 0,
-                hEvent = overlapEvent,
+                hEvent = overlapEvent.SafeWaitHandle.DangerousGetHandle(),
                 Internal = IntPtr.Zero,
                 InternalHigh = IntPtr.Zero
             };
@@ -270,32 +264,33 @@ namespace RailDriver
 
             while (readThreadActive)
             {
-
                 int dataRead = 0;//FileIOApiDeclarations.
+
                 if (readFileHandle.IsInvalid)
                 {
                     errCodeReadError = errCodeR = 320;
-                    goto EXit;
+                    break;
                 }
 
-                if (0 == FileIOApiDeclarations.ReadFile(readFileHandle, gch.AddrOfPinnedObject(), ReadLength, ref dataRead, ref overlapped)) //ref readFileBuffer[0]
+                if (0 == FileIOApiDeclarations.ReadFile(readFileHandle, gch.AddrOfPinnedObject(), ReadLength, ref dataRead, ref overlapped))
                 {
                     int result = Marshal.GetLastWin32Error();
                     if (result != FileIOApiDeclarations.ERROR_IO_PENDING) //|| result == FileIOApiDeclarations.ERROR_DEVICE_NOT_CONNECTED)
                     {
-                        if (readFileHandle.IsInvalid) { errCodeReadError = errCodeR = 321; goto EXit; }
+                        if (readFileHandle.IsInvalid)
+                        {
+                            errCodeReadError = errCodeR = 321;
+                            break;
+                        }
                         errCodeR = result;
                         errCodeReadError = 308;
-                        goto EXit;
+                        break;
                     }
                     else //if (result != .ERROR_IO_PENDING)
                     {
-                        // gch.Free(); //onur
                         while (readThreadActive)
                         {
-
-                            result = FileIOApiDeclarations.WaitForSingleObject(overlapEvent, 50);
-                            if (FileIOApiDeclarations.WAIT_OBJECT_0 == result)
+                            if (overlapEvent.WaitOne(50))
                             {
                                 if (0 == FileIOApiDeclarations.GetOverlappedResult(readFileHandle, ref overlapped, ref dataRead, 0))
                                 {
@@ -309,7 +304,6 @@ namespace RailDriver
 
                                     }
                                 }
-                                // buffer[0] = 89;
                                 goto ReadCompleted;
                             }
                         }//while
@@ -317,20 +311,23 @@ namespace RailDriver
                     }//if (result != .ERROR_IO_PENDING)...else 
                     continue;
                 }
-            //buffer[0] = 90;
             ReadCompleted:
-                if (dataRead != ReadLength) { errCodeR = 310; errCodeReadError = 310; goto EXit; }
+                if (dataRead != ReadLength)
+                {
+                    errCodeR = 310;
+                    errCodeReadError = 310;
+                    break;
+                }
 
                 if (SuppressDuplicateReports)
                 {
-                    int r = readRing.TryPutChanged(buffer);
-                    if (r == 0)
-                        _ = FileIOApiDeclarations.SetEvent(readEvent);
+                    if (readRing.TryPutChanged(buffer))
+                        readEvent.Set();
                 }
                 else
                 {
                     readRing.Put(buffer);
-                    _ = FileIOApiDeclarations.SetEvent(readEvent);
+                    readEvent.Set();
                 }
 
             }//while
@@ -339,7 +336,7 @@ namespace RailDriver
             _ = FileIOApiDeclarations.CancelIo(readFileHandle);
             readFileHandle = null;
             gch.Free();
-            return;
+            overlapEvent.Close();
         }
 
         private void DataEventThread()
@@ -367,10 +364,9 @@ namespace RailDriver
                         holdDataThreadOpen = false;
                     }
                     if (readRing.IsEmpty())
-                        _ = FileIOApiDeclarations.ResetEvent(readEvent);
+                        readEvent.Reset();
                 }
-                // System.Threading.Thread.Sleep(10);
-                _ = FileIOApiDeclarations.WaitForSingleObject(readEvent, 100);
+                readEvent.WaitOne(100);
             }
             return;
         }
@@ -391,31 +387,28 @@ namespace RailDriver
             if (ReadLength > 0)
             {
                 readFileH = FileIOApiDeclarations.CreateFile(Path, FileIOApiDeclarations.GENERIC_READ,
-                 FileIOApiDeclarations.FILE_SHARE_READ | FileIOApiDeclarations.FILE_SHARE_WRITE,
-                 IntPtr.Zero, FileIOApiDeclarations.OPEN_EXISTING, FileIOApiDeclarations.FILE_FLAG_OVERLAPPED, 0);
+                    FileIOApiDeclarations.FILE_SHARE_READ | FileIOApiDeclarations.FILE_SHARE_WRITE,
+                    IntPtr.Zero, FileIOApiDeclarations.OPEN_EXISTING, FileIOApiDeclarations.FILE_FLAG_OVERLAPPED, 0);
 
                 readFileHandle = new SafeFileHandle(readFileH, true);
                 if (readFileHandle.IsInvalid)
                 {
-                    //readEvent = null;
-                    //readFileHandle = null;
                     readRing = null;
-                    //CloseInterface();
                     retin = 207;
-                    goto outputinit;
                 }
-                readEvent = FileIOApiDeclarations.CreateEvent(ref securityAttrUnused, 1, 0, "");
-                readRing = new RingBuffer(128, ReadLength);
-                readThreadHandle = new Thread(new ThreadStart(ReadThread))
+                else
                 {
-                    IsBackground = true,
-                    Name = $"PIEHidReadThread for {Pid}"
-                };
-                readThreadActive = true;
-                readThreadHandle.Start();
+                    readRing = new RingBuffer(128, ReadLength);
+                    readThreadHandle = new Thread(new ThreadStart(ReadThread))
+                    {
+                        IsBackground = true,
+                        Name = $"PIEHidReadThread for {Pid}"
+                    };
+                    readThreadActive = true;
+                    readThreadHandle.Start();
+                }
             }
 
-        outputinit:
             if (WriteLength > 0)
             {
                 IntPtr writeFileH = FileIOApiDeclarations.CreateFile(Path, FileIOApiDeclarations.GENERIC_WRITE,
@@ -426,33 +419,31 @@ namespace RailDriver
                 writeFileHandle = new SafeFileHandle(writeFileH, true);
                 if (writeFileHandle.IsInvalid)
                 {
-                    // writeEvent = null;
-                    // writeFileHandle = null;
                     writeRing = null;
-                    //CloseInterface();
                     retout = 208;
-                    goto ErrorOut;
                 }
-                writeEvent = FileIOApiDeclarations.CreateEvent(ref securityAttrUnused, 1, 0, "");
-                writeRing = new RingBuffer(128, WriteLength);
-                writeThreadHandle = new Thread(new ThreadStart(WriteThread))
+                else
                 {
-                    IsBackground = true,
-                    Name = $"PIEHidWriteThread for {Pid}"
-                };
-                writeThreadActive = true;
-                writeThreadHandle.Start();
-
+                    writeRing = new RingBuffer(128, WriteLength);
+                    writeThreadHandle = new Thread(new ThreadStart(WriteThread))
+                    {
+                        IsBackground = true,
+                        Name = $"PIEHidWriteThread for {Pid}"
+                    };
+                    writeThreadActive = true;
+                    writeThreadHandle.Start();
+                }
             }
-            connected = true;
-        ErrorOut:
+
             if ((retin == 0) && (retout == 0))
+            {
+                connected = true;
                 return 0;
-            if ((retin == 207) && (retout == 208))
+            }
+            else if ((retin == 207) && (retout == 208))
                 return 209;
             else
                 return retin + retout;
-
         }
 
         /// <summary>
@@ -466,7 +457,7 @@ namespace RailDriver
             if (dataThreadActive)
             {
                 dataThreadActive = false;
-                _ = FileIOApiDeclarations.SetEvent(readEvent);
+                readEvent.Set();
                 int n = 0;
                 if (dataThreadHandle != null)
                 {
@@ -500,7 +491,7 @@ namespace RailDriver
             if (writeThreadActive)
             {
                 writeThreadActive = false;
-                _ = FileIOApiDeclarations.SetEvent(writeEvent);
+                writeEvent.Set();
                 if (writeThreadHandle != null)
                 {
                     int n = 0;
@@ -529,23 +520,16 @@ namespace RailDriver
                 }
             }
 
-            if (writeRing != null) { writeRing = null; }
-            if (readRing != null) { readRing = null; }
-
-            //  if (readEvent != null) {readEvent = null;}
-            //  if (writeEvent != null) { writeEvent = null; }
+            writeRing = null;
+            readRing = null;
 
             if ((0x00FF != Pid && 0x00FE != Pid && 0x00FD != Pid && 0x00FC != Pid && 0x00FB != Pid) || Version > 272)
             {
                 // it's not an old VEC foot pedal (those hang when closing the handle)
-                if (readFileHandle != null) // 9/1/09 - readFileHandle != null ||added by Onur to avoid null reference exception
-                {
-                    if (!readFileHandle.IsInvalid) readFileHandle.Close();
-                }
-                if (writeFileHandle != null)
-                {
-                    if (!writeFileHandle.IsInvalid) writeFileHandle.Close();
-                }
+                if (readFileHandle != null && !readFileHandle.IsInvalid)
+                    readFileHandle.Close();
+                if (writeFileHandle != null && !writeFileHandle.IsInvalid)
+                    writeFileHandle.Close();
             }
             connected = false;
 
@@ -592,7 +576,8 @@ namespace RailDriver
                 return 802;
 
             if (registeredErrorHandler == null)
-            {//registeredErrorHandler is not defined so define it and create thread. 
+            {
+                //registeredErrorHandler is not defined so define it and create thread. 
                 registeredErrorHandler = handler;
                 errorThreadHandle = new Thread(new ThreadStart(ErrorThread))
                 {
@@ -690,7 +675,7 @@ namespace RailDriver
                 Thread.Sleep(1);
                 return 404;
             }
-            _ = FileIOApiDeclarations.SetEvent(writeEvent);
+            writeEvent.Set();
             return 0;
         }
 
@@ -745,14 +730,6 @@ namespace RailDriver
                 }
             }
             _ = DeviceManagementApiDeclarations.SetupDiDestroyDeviceInfoList(deviceInfoSet);
-            //Security attributes not used anymore - not necessary Onur March 2009
-            // Open each device file and test for vid
-            FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttributes = new FileIOApiDeclarations.SECURITY_ATTRIBUTES
-            {
-                lpSecurityDescriptor = IntPtr.Zero,
-                bInheritHandle = Convert.ToInt32(true) //patti keep Int32 here
-            };
-            securityAttributes.nLength = Marshal.SizeOf(securityAttributes);
 
             foreach (string devicePath in paths)
             {

@@ -184,7 +184,7 @@ namespace RailDriver
                 writePosition = 0;
             if (writePosition == readPosition)
                 overflow = true;
-            Array.Copy(data, 0, ringBuffer, elementSize * writePosition, elementSize);
+            data.CopyTo(ringBuffer, elementSize * writePosition);
             noData = false;
             Unlock();
             return 0;
@@ -209,7 +209,7 @@ namespace RailDriver
             }
             if (writePosition == readPosition)
                 overflow = true;
-            Array.Copy(data, 0, ringBuffer, elementSize * writePosition, elementSize);
+            data.CopyTo(ringBuffer, elementSize * writePosition);
             noData = false;
             Unlock();
         }
@@ -218,16 +218,13 @@ namespace RailDriver
         /// Puts a new data element into the ring buffera value 
         /// if this element is different than the previous entry.
         /// </summary>
-        public int TryPutChanged(byte[] data)
+        public bool TryPutChanged(byte[] data)
         {
-            int result = 1;
             Lock();
-            byte[] temp = new byte[elementSize];
-            Array.Copy(data, 0, temp, 0, elementSize);
             bool different = false;
             for (int j = 0; j < elementSize; j++)
             {
-                if (temp[j] != ringBuffer[j + writePosition * elementSize])
+                if (data[j] != ringBuffer[j + writePosition * elementSize])
                 {
                     different = true;
                     break;
@@ -246,12 +243,13 @@ namespace RailDriver
                 }
                 if (writePosition == readPosition)
                     overflow = true;
-                Array.Copy(data, 0, ringBuffer, elementSize * writePosition, elementSize);
+                data.CopyTo(ringBuffer, elementSize * writePosition);
                 noData = false;
-                result = 0;
+                Unlock();
+                return true;
             }
             Unlock();
-            return result;
+            return false;
         }
 
         /// <summary>
@@ -289,7 +287,6 @@ namespace RailDriver
                 Unlock();
                 return 2;
             }
-            //  memcpy(pS, pB + i * M, M);
             Array.Copy(ringBuffer, writePosition * elementSize, data, 0, elementSize);
             Unlock();
             return 0;

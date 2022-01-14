@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Windows.Forms;
 
-using RailDriver;
-
 namespace RailDriver.Sample
 {
     public partial class Form1 : Form, IDataHandler, IErrorHandler
@@ -19,10 +17,14 @@ namespace RailDriver.Sample
         private delegate void SetTextCallback(string text);
         //end thread-safe
 
+        private readonly SetTextCallback setListBoxTextDelegate;
+        private readonly SetTextCallback setToolStripTextDelegate;
 
         public Form1()
         {
             InitializeComponent();
+            setListBoxTextDelegate = new SetTextCallback(SetListBox);
+            setToolStripTextDelegate = new SetTextCallback(SetToolStrip);
         }
 
         private void BtnEnumerate_Click(object sender, EventArgs e)
@@ -107,6 +109,7 @@ namespace RailDriver.Sample
                     //use the cbotodevice array which contains the mapping of the devices in the CboDevices to the actual device IDs
                     devices[cbotodevice[i]].SetErrorCallback(this);
                     devices[cbotodevice[i]].SetDataCallback(this);
+                    devices[cbotodevice[i]].SuppressDuplicateReports = true;
                     devices[cbotodevice[i]].CallNever = false;
                 }
 
@@ -138,6 +141,7 @@ namespace RailDriver.Sample
             }
 
         }
+
         //error callback
         public void HandleHidError(PIEDevice sourceDevice, int error)
         {
@@ -152,8 +156,7 @@ namespace RailDriver.Sample
             // If these threads are different, it returns true.
             if (listBox1.InvokeRequired)
             {
-                SetTextCallback d = new SetTextCallback(SetListBox);
-                Invoke(d, new object[] { text });
+                listBox1.Invoke(setListBoxTextDelegate, text);
             }
             else
             {
@@ -170,8 +173,7 @@ namespace RailDriver.Sample
             // If these threads are different, it returns true.
             if (statusStrip1.InvokeRequired)
             {
-                SetTextCallback d = new SetTextCallback(SetToolStrip);
-                Invoke(d, new object[] { text });
+                statusStrip1.Invoke(setToolStripTextDelegate, text);
             }
             else
             {
@@ -275,11 +277,5 @@ namespace RailDriver.Sample
         {
             System.Media.SystemSounds.Beep.Play();
         }
-
-
-
-
     }
-
-
 }
