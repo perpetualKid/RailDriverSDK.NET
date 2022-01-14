@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 using Microsoft.Win32.SafeHandles;
 
@@ -119,8 +120,8 @@ namespace RailDriver
         [DllImport("hid.dll")]
         public static extern void HidD_GetHidGuid(ref Guid HidGuid);
 
-        [DllImport("hid.dll")]
-        public static extern int HidD_GetManufacturerString(SafeFileHandle HidDeviceObject, ref byte sss, int StringSize);
+        [DllImport("hid.dll", CharSet = CharSet.Auto)]
+        public static extern int HidD_GetManufacturerString(SafeFileHandle HidDeviceObject, StringBuilder buffer, int StringSize);
 
         [DllImport("hid.dll")]
         public static extern bool HidD_GetNumInputBuffers(SafeFileHandle HidDeviceObject, ref int NumberBuffers);
@@ -128,8 +129,8 @@ namespace RailDriver
         [DllImport("hid.dll")]
         public static extern bool HidD_GetPreparsedData(SafeFileHandle HidDeviceObject, ref IntPtr PreparsedData); //type changed by Onur for 64-bit compatability
 
-        [DllImport("hid.dll")]
-        public static extern int HidD_GetProductString(SafeFileHandle HidDeviceObject, ref byte sss, int StringSize);
+        [DllImport("hid.dll", CharSet = CharSet.Auto)]
+        public static extern int HidD_GetProductString(SafeFileHandle HidDeviceObject, StringBuilder buffer, int StringSize);
 
         [DllImport("hid.dll")]
         public static extern bool HidD_SetFeature(SafeFileHandle HidDeviceObject, ref byte lpReportBuffer, int ReportBufferLength);

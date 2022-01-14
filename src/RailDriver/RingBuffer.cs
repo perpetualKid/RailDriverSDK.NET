@@ -255,13 +255,13 @@ namespace RailDriver
         /// <summary>
         /// Gets the current element from the ring buffer.
         /// </summary>
-        public int Get(byte[] data)
+        public bool Get(byte[] data)
         {
             Lock();
             if ((!overflow) && (readPosition == writePosition))
             {
                 Unlock();
-                return 1;
+                return false;
             }
             overflow = false;
             readPosition++;
@@ -269,7 +269,7 @@ namespace RailDriver
                 readPosition = 0;
             Array.Copy(ringBuffer, readPosition * elementSize, data, 0, elementSize);
             Unlock();
-            return 0;
+            return true;
         }
 
         /// <summary>

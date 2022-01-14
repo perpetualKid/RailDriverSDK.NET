@@ -29,37 +29,11 @@ namespace RailDriver
         public const short WAIT_OBJECT_0 = 0;
 
         // ******************************************************************************
-        // Structures and classes for API calls, listed alphabetically
-        // ******************************************************************************
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct OVERLAPPED
-        {
-            public IntPtr Internal;
-            public IntPtr InternalHigh;
-            public int Offset;
-            public int OffsetHigh;
-            public IntPtr hEvent;
-        }
-
-        // ******************************************************************************
         // API functions, listed alphabetically
         // ******************************************************************************
 
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern int CancelIo(SafeFileHandle hFile);
-
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         public static extern IntPtr CreateFile(string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, int dwCreationDisposition, uint dwFlagsAndAttributes, int hTemplateFile); 
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern int ReadFile(SafeFileHandle hFile, IntPtr lpBuffer, int nNumberOfBytesToRead, ref int lpNumberOfBytesRead, ref OVERLAPPED lpOverlapped);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern int WriteFile(SafeFileHandle hFile, IntPtr lpBuffer, int nNumberOfBytesToWrite, ref int lpNumberOfBytesWritten, ref OVERLAPPED lpOverlapped);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern int GetOverlappedResult(SafeFileHandle hFile, ref OVERLAPPED lpOverlapped, ref int lpNumberOfBytesTransferred, int bWait);
 
     }
 

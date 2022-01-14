@@ -42,31 +42,9 @@ namespace RailDriver
             public IntPtr Reserved; //type modified by Onur for 64-bit
         }
 
-        [StructLayout(LayoutKind.Sequential)]
-        public struct SP_DEVICE_INTERFACE_DETAIL_DATA
-        {
-            public int Size;
-            public string DevicePath;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct SP_DEVINFO_DATA
-        {
-            public int Size;
-            public Guid ClassGuid;
-            public int DevInst;
-            public IntPtr Reserved; //type modified by Onur for 64-bit
-        }
-
         // ******************************************************************************
         // API functions, listed alphabetically
         // ******************************************************************************
-
-        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-        public static extern IntPtr RegisterDeviceNotification(IntPtr hRecipient, IntPtr NotificationFilter, int Flags);
-
-        [DllImport("setupapi.dll", SetLastError = true)]
-        public static extern int SetupDiCreateDeviceInfoList(ref Guid ClassGuid, IntPtr hwndParent);
 
         [DllImport("setupapi.dll", SetLastError = true)]
         public static extern int SetupDiDestroyDeviceInfoList(IntPtr DeviceInfoSet);
@@ -79,12 +57,6 @@ namespace RailDriver
 
         [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern bool SetupDiGetDeviceInterfaceDetail(IntPtr DeviceInfoSet, ref SP_DEVICE_INTERFACE_DATA DeviceInterfaceData, IntPtr DeviceInterfaceDetailData, int DeviceInterfaceDetailDataSize, ref int RequiredSize, IntPtr DeviceInfoData);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        public static extern bool UnregisterDeviceNotification(IntPtr Handle);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern bool DeviceIoControl(SafeFileHandle handle, uint dwIoControlCode, ref uint lpInBuffer, uint nInBufferSize, IntPtr lpOutBuffer, uint nOutBufferSize, ref uint lpBytesReturned, ref FileIOApiDeclarations.OVERLAPPED lpOverlapped);
 
     }
 

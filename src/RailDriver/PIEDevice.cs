@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 using Microsoft.Win32.SafeHandles;
 
@@ -27,12 +30,10 @@ namespace RailDriver
         private int errCodeWriteError = 0;
         private bool holdDataThreadOpen = false;
         private bool holdErrorThreadOpen = false;
-        private readonly ManualResetEvent writeEvent = new ManualResetEvent(false);
-        private readonly ManualResetEvent readEvent = new ManualResetEvent(false);
+        private readonly ManualResetEventSlim writeEvent = new ManualResetEventSlim(false);
+        private readonly ManualResetEventSlim readEvent = new ManualResetEventSlim(false);
 
-        private Thread readThreadHandle;
         private Thread dataThreadHandle;
-        private Thread writeThreadHandle;
         private Thread errorThreadHandle;
         private bool readThreadActive = false;
         private bool writeThreadActive = false;
@@ -161,182 +162,90 @@ namespace RailDriver
             }
         }
 
-        /// <summary>
-        /// Write Thread
-        /// </summary>
-        private void WriteThread()
+        private async Task ReadFromHid()
         {
-            ManualResetEvent overlapEvent = new ManualResetEvent(false);
-            FileIOApiDeclarations.OVERLAPPED overlapped = new FileIOApiDeclarations.OVERLAPPED
+            byte[] buffer = new byte[ReadLength];
+            if (ReadLength == 0)
             {
-                Offset = 0,
-                OffsetHigh = 0,
-                hEvent = overlapEvent.SafeWaitHandle.DangerousGetHandle(),
-                Internal = IntPtr.Zero,
-                InternalHigh = IntPtr.Zero
-            };
-            if (WriteLength == 0)
+                errCodeR = errCodeReadError = 302;
                 return;
-
-            byte[] buffer = new byte[WriteLength];
-            GCHandle wgch = GCHandle.Alloc(buffer, GCHandleType.Pinned); //onur March 2009 - pinning is required
-
-            int byteCount = 0; ;
-
-            errCodeW = 0;
-            errCodeWriteError = 0;
-            while (writeThreadActive)
+            }
+            if (readRing == null)
             {
-                if (writeRing == null) { errCodeW = 407; errCodeWriteError = 407; goto Error; }
-                while (writeRing.Get((byte[])buffer) == 0)
+                errCodeW = errCodeWriteError = 307;
+                return;
+            }
+
+            using (FileStream deviceRead = new FileStream(readFileHandle, FileAccess.Read, ReadLength, true))
+            {
+                while (readThreadActive)
                 {
-                    if (0 == FileIOApiDeclarations.WriteFile(writeFileHandle, wgch.AddrOfPinnedObject(), WriteLength, ref byteCount, ref overlapped))
+                    if (readFileHandle.IsInvalid)
                     {
-                        int result = Marshal.GetLastWin32Error();
-                        if (result != FileIOApiDeclarations.ERROR_IO_PENDING)
-                        //if ((result == FileIOApiDeclarations.ERROR_INVALID_HANDLE) ||
-                        //    (result == FileIOApiDeclarations.ERROR_DEVICE_NOT_CONNECTED))
+                        errCodeReadError = errCodeR = 301;
+                        break;
+                    }
+                    try
+                    {
+                        if (await deviceRead.ReadAsync(buffer, 0, ReadLength).ConfigureAwait(false) == ReadLength)
                         {
-                            if (result == 87)
+                            if (SuppressDuplicateReports)
                             {
-                                errCodeW = 412;
-                                errCodeWriteError = 412;
+                                if (readRing.TryPutChanged(buffer))
+                                    readEvent.Set();
                             }
                             else
                             {
-                                errCodeW = result;
-                                errCodeWriteError = 408;
+                                readRing.Put(buffer);
+                                readEvent.Set();
                             }
-                            goto Error;
                         }
                         else
                         {
-                            if (overlapEvent.WaitOne(1000))
-                            {
-                                goto WriteCompleted;
-                            }
-                            errCodeW = 411;
-                            errCodeWriteError = 411;
-
-                            goto Error;
-                        }
-                    }
-                    else
-                    {
-                        if ((long)byteCount != WriteLength)
-                        {
-                            errCodeW = 410;
-                            errCodeWriteError = 410;
-                        }
-                    }
-                WriteCompleted:;
-                }
-                writeEvent.WaitOne(100);
-                writeEvent.Reset();
-            }
-        Error:
-            wgch.Free(); //onur
-            overlapEvent.Close();
-        }
-
-        private void ReadThread()
-        {
-            ManualResetEvent overlapEvent = new ManualResetEvent(false);
-            FileIOApiDeclarations.OVERLAPPED overlapped = new FileIOApiDeclarations.OVERLAPPED
-            {
-                Offset = 0,
-                OffsetHigh = 0,
-                hEvent = overlapEvent.SafeWaitHandle.DangerousGetHandle(),
-                Internal = IntPtr.Zero,
-                InternalHigh = IntPtr.Zero
-            };
-            if (ReadLength == 0)
-            {
-                errCodeR = 302;
-                errCodeReadError = 302;
-                return;
-            }
-            errCodeR = 0;
-            errCodeReadError = 0;
-
-            byte[] buffer = new byte[ReadLength];
-            GCHandle gch = GCHandle.Alloc(buffer, GCHandleType.Pinned); //onur March 2009 - pinning is required
-
-            while (readThreadActive)
-            {
-                int dataRead = 0;//FileIOApiDeclarations.
-
-                if (readFileHandle.IsInvalid)
-                {
-                    errCodeReadError = errCodeR = 320;
-                    break;
-                }
-
-                if (0 == FileIOApiDeclarations.ReadFile(readFileHandle, gch.AddrOfPinnedObject(), ReadLength, ref dataRead, ref overlapped))
-                {
-                    int result = Marshal.GetLastWin32Error();
-                    if (result != FileIOApiDeclarations.ERROR_IO_PENDING) //|| result == FileIOApiDeclarations.ERROR_DEVICE_NOT_CONNECTED)
-                    {
-                        if (readFileHandle.IsInvalid)
-                        {
-                            errCodeReadError = errCodeR = 321;
+                            errCodeR = errCodeReadError = 310;
                             break;
                         }
-                        errCodeR = result;
-                        errCodeReadError = 308;
+                    }
+                    catch (IOException)
+                    {
+                        errCodeR = errCodeReadError = 309;
                         break;
                     }
-                    else //if (result != .ERROR_IO_PENDING)
+                }
+            }
+        }
+
+        private async Task WriteToHid()
+        {
+            byte[] buffer = new byte[WriteLength];
+            if (WriteLength == 0)
+            {
+                errCodeR = errCodeReadError = 402;
+                return;
+            }
+            if (writeRing == null)
+            {
+                errCodeW = errCodeWriteError = 407;
+                return;
+            }
+
+            using (FileStream deviceWrite = new FileStream(writeFileHandle, FileAccess.Write, WriteLength, true))
+            {
+                while (writeThreadActive)
+                {
+                    while (writeRing.Get(buffer))
                     {
-                        while (readThreadActive)
+                        if (writeFileHandle.IsInvalid)
                         {
-                            if (overlapEvent.WaitOne(50))
-                            {
-                                if (0 == FileIOApiDeclarations.GetOverlappedResult(readFileHandle, ref overlapped, ref dataRead, 0))
-                                {
-                                    result = Marshal.GetLastWin32Error();
-                                    if (result == FileIOApiDeclarations.ERROR_INVALID_HANDLE || result == FileIOApiDeclarations.ERROR_DEVICE_NOT_CONNECTED)
-                                    {
-
-                                        errCodeR = 309;
-                                        errCodeReadError = 309;
-                                        goto EXit;
-
-                                    }
-                                }
-                                goto ReadCompleted;
-                            }
-                        }//while
-
-                    }//if (result != .ERROR_IO_PENDING)...else 
-                    continue;
+                            errCodeReadError = errCodeR = 401;
+                            return;
+                        }
+                        await deviceWrite.WriteAsync(buffer, 0, WriteLength).ConfigureAwait(false);
+                    }
+                    writeEvent.Wait(100);
+                    writeEvent.Reset();
                 }
-            ReadCompleted:
-                if (dataRead != ReadLength)
-                {
-                    errCodeR = 310;
-                    errCodeReadError = 310;
-                    break;
-                }
-
-                if (SuppressDuplicateReports)
-                {
-                    if (readRing.TryPutChanged(buffer))
-                        readEvent.Set();
-                }
-                else
-                {
-                    readRing.Put(buffer);
-                    readEvent.Set();
-                }
-
-            }//while
-
-        EXit:
-            _ = FileIOApiDeclarations.CancelIo(readFileHandle);
-            readFileHandle = null;
-            gch.Free();
-            overlapEvent.Close();
+            }
         }
 
         private void DataEventThread()
@@ -357,7 +266,7 @@ namespace RailDriver
                         holdDataThreadOpen = false;
                         dataThreadActive = false;
                     }
-                    else if (readRing.Get(currBuff) == 0)
+                    else if (readRing.Get(currBuff))
                     {
                         holdDataThreadOpen = true;
                         registeredDataHandler.HandleHidData(currBuff, this, 0);
@@ -366,7 +275,7 @@ namespace RailDriver
                     if (readRing.IsEmpty())
                         readEvent.Reset();
                 }
-                readEvent.WaitOne(100);
+                readEvent.Wait(100);
             }
             return;
         }
@@ -399,13 +308,8 @@ namespace RailDriver
                 else
                 {
                     readRing = new RingBuffer(128, ReadLength);
-                    readThreadHandle = new Thread(new ThreadStart(ReadThread))
-                    {
-                        IsBackground = true,
-                        Name = $"PIEHidReadThread for {Pid}"
-                    };
                     readThreadActive = true;
-                    readThreadHandle.Start();
+                    _ = Task.Run(() => ReadFromHid());
                 }
             }
 
@@ -425,13 +329,8 @@ namespace RailDriver
                 else
                 {
                     writeRing = new RingBuffer(128, WriteLength);
-                    writeThreadHandle = new Thread(new ThreadStart(WriteThread))
-                    {
-                        IsBackground = true,
-                        Name = $"PIEHidWriteThread for {Pid}"
-                    };
                     writeThreadActive = true;
-                    writeThreadHandle.Start();
+                    _ = Task.Run(() => WriteToHid());
                 }
             }
 
@@ -458,51 +357,17 @@ namespace RailDriver
             {
                 dataThreadActive = false;
                 readEvent.Set();
-                int n = 0;
-                if (dataThreadHandle != null)
-                {
-                    while (dataThreadHandle.IsAlive)
-                    {
-                        Thread.Sleep(10);
-                        n++;
-                        if (n == 10) { dataThreadHandle.Abort(); break; }
-                    }
-                    dataThreadHandle = null;
-                }
             }
 
             // Shut down read thread
             if (readThreadActive)
             {
                 readThreadActive = false;
-                // Wait for thread to exit
-                if (readThreadHandle != null)
-                {
-                    int n = 0;
-                    while (readThreadHandle.IsAlive)
-                    {
-                        Thread.Sleep(10);
-                        n++;
-                        if (n == 10) { readThreadHandle.Abort(); break; }
-                    }
-                    readThreadHandle = null;
-                }
             }
             if (writeThreadActive)
             {
                 writeThreadActive = false;
                 writeEvent.Set();
-                if (writeThreadHandle != null)
-                {
-                    int n = 0;
-                    while (writeThreadHandle.IsAlive)
-                    {
-                        Thread.Sleep(10);
-                        n++;
-                        if (n == 10) { writeThreadHandle.Abort(); break; }
-                    }
-                    writeThreadHandle = null;
-                }
             }
             if (errorThreadActive)
             {
@@ -627,7 +492,7 @@ namespace RailDriver
                 dest = new byte[ReadLength];
             if (dest.Length < ReadLength)
                 return 311;
-            if (readRing.Get(dest) != 0)
+            if (!readRing.Get(dest))
                 return 304;
             return 0;
         }
@@ -695,7 +560,6 @@ namespace RailDriver
         /// <returns>list of all devices found, ordered by USB port connection</returns>
         public static IList<PIEDevice> EnumeratePIE(int vid)
         {
-
             // FileIOApiDeclarations.SECURITY_ATTRIBUTES securityAttrUnusedE = new FileIOApiDeclarations.SECURITY_ATTRIBUTES();  
             List<PIEDevice> devices = new List<PIEDevice>();
 
@@ -703,8 +567,7 @@ namespace RailDriver
             Guid guid = Guid.Empty;
             HidApiDeclarations.HidD_GetHidGuid(ref guid);
             IntPtr deviceInfoSet = DeviceManagementApiDeclarations.SetupDiGetClassDevs(ref guid, null, IntPtr.Zero,
-                DeviceManagementApiDeclarations.DIGCF_PRESENT
-                | DeviceManagementApiDeclarations.DIGCF_DEVICEINTERFACE);
+                DeviceManagementApiDeclarations.DIGCF_PRESENT | DeviceManagementApiDeclarations.DIGCF_DEVICEINTERFACE);
 
             DeviceManagementApiDeclarations.SP_DEVICE_INTERFACE_DATA deviceInterfaceData = new DeviceManagementApiDeclarations.SP_DEVICE_INTERFACE_DATA();
             deviceInterfaceData.Size = Marshal.SizeOf(deviceInterfaceData); //28;
@@ -733,7 +596,6 @@ namespace RailDriver
 
             foreach (string devicePath in paths)
             {
-
                 IntPtr fileH = FileIOApiDeclarations.CreateFile(devicePath, FileIOApiDeclarations.GENERIC_WRITE,
                     FileIOApiDeclarations.FILE_SHARE_READ | FileIOApiDeclarations.FILE_SHARE_WRITE,
                     IntPtr.Zero, FileIOApiDeclarations.OPEN_EXISTING, 0, 0);
@@ -747,8 +609,7 @@ namespace RailDriver
                 {
                     HidApiDeclarations.HIDD_ATTRIBUTES hidAttributes = new HidApiDeclarations.HIDD_ATTRIBUTES();
                     hidAttributes.Size = Marshal.SizeOf(hidAttributes);
-                    if (0 != HidApiDeclarations.HidD_GetAttributes(fileHandle, ref hidAttributes)
-                        && hidAttributes.VendorID == vid)
+                    if (0 != HidApiDeclarations.HidD_GetAttributes(fileHandle, ref hidAttributes) && hidAttributes.VendorID == vid)
                     {
                         // Good attributes and right vid, try to get caps
                         IntPtr pPerparsedData = new IntPtr();
@@ -758,35 +619,14 @@ namespace RailDriver
                             if (0 != HidApiDeclarations.HidP_GetCaps(pPerparsedData, ref hidCaps))
                             {
                                 // Got Capabilities, add device to list
-                                byte[] Mstring = new byte[128];
-                                string ssss = ""; ;
-                                if (0 != HidApiDeclarations.HidD_GetManufacturerString(fileHandle, ref Mstring[0], 128))
-                                {
-                                    for (int i = 0; i < 64; i++)
-                                    {
-                                        byte[] t = new byte[2];
-                                        t[0] = Mstring[2 * i];
-                                        t[1] = Mstring[2 * i + 1];
-                                        if (t[0] == 0) break;
-                                        ssss += System.Text.Encoding.Unicode.GetString(t);
-                                    }
-                                }
-                                byte[] Pstring = new byte[128];
-                                string psss = "";
-                                if (0 != HidApiDeclarations.HidD_GetProductString(fileHandle, ref Pstring[0], 128))
-                                {
-                                    for (int i = 0; i < 64; i++)
-                                    {
-                                        byte[] t = new byte[2];
-                                        t[0] = Pstring[2 * i];
-                                        t[1] = Pstring[2 * i + 1];
-                                        if (t[0] == 0) break;
-                                        psss += System.Text.Encoding.Unicode.GetString(t);
-                                    }
-                                }
+                                char[] Mstring = new char[128];
+                                StringBuilder manufacturer = new StringBuilder();
+                                StringBuilder productName = new StringBuilder();
+                                _ = HidApiDeclarations.HidD_GetManufacturerString(fileHandle, manufacturer, 128);
+                                _ = HidApiDeclarations.HidD_GetProductString(fileHandle, productName, 128);
 
                                 devices.Add(new PIEDevice(devicePath, hidAttributes.VendorID, hidAttributes.ProductID, hidAttributes.VersionNumber, hidCaps.Usage,
-                                    hidCaps.UsagePage, hidCaps.InputReportByteLength, hidCaps.OutputReportByteLength, ssss, psss));
+                                    hidCaps.UsagePage, hidCaps.InputReportByteLength, hidCaps.OutputReportByteLength, manufacturer.ToString(), productName.ToString()));
                             }
 
                         }
