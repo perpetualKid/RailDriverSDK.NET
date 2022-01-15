@@ -460,17 +460,15 @@ namespace RailDriver
         /// <returns></returns>
         public int BlockingReadData(ref byte[] dest, int maxMillis)
         {
-            long startTicks = DateTime.UtcNow.Ticks;
-            int ret = 304;
-            int mills = maxMillis;
-            while ((mills > 0) && (ret == 304))
+            DateTime timeout = DateTime.UtcNow.AddMilliseconds(maxMillis);
+            int result = 304;
+            while ((timeout > DateTime.UtcNow) && (result == 304))
             {
-                if ((ret = ReadData(ref dest)) == 0) break;
-                long nowTicks = DateTime.UtcNow.Ticks;
-                mills = maxMillis - ((int)(nowTicks - startTicks) / 10000);
+                if ((result = ReadData(ref dest)) == 0) 
+                    break;
                 Thread.Sleep(10);
             }
-            return ret;
+            return result;
         }
 
         /// <summary>
