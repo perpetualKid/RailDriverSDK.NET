@@ -309,7 +309,7 @@ namespace RailDriver
                 else
                 {
                     readRing = new RingBuffer(128, ReadLength);
-                    _ = Task.Run(() => ReadFromHid());
+                    _ = ReadFromHid();
                 }
             }
 
@@ -329,7 +329,7 @@ namespace RailDriver
                 else
                 {
                     writeRing = new RingBuffer(128, WriteLength);
-                    _ = Task.Run(() => WriteToHid());
+                    _ = WriteToHid();
                 }
             }
 

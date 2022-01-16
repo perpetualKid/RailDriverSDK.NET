@@ -17,7 +17,4 @@ Implementing 32bit and 64bit support (AnyCPU) in a single package.</Description>
       <PackagePath></PackagePath>
     </None>
   </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="System.Buffers" Version="4.5.1" />
-  </ItemGroup>
 </Project>
