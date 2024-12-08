@@ -1,8 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
 
-using Microsoft.Win32.SafeHandles;
-
 namespace RailDriver
 {
     internal sealed class DeviceManagementApiDeclarations
@@ -47,15 +45,19 @@ namespace RailDriver
         // ******************************************************************************
 
         [DllImport("setupapi.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern int SetupDiDestroyDeviceInfoList(IntPtr DeviceInfoSet);
 
         [DllImport("setupapi.dll", SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern int SetupDiEnumDeviceInterfaces(IntPtr DeviceInfoSet, int DeviceInfoData, ref Guid InterfaceClassGuid, int MemberIndex, ref SP_DEVICE_INTERFACE_DATA DeviceInterfaceData);
 
         [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern IntPtr SetupDiGetClassDevs(ref Guid ClassGuid, string Enumerator, IntPtr hwndParent, int Flags);
 
         [DllImport("setupapi.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern bool SetupDiGetDeviceInterfaceDetail(IntPtr DeviceInfoSet, ref SP_DEVICE_INTERFACE_DATA DeviceInterfaceData, IntPtr DeviceInterfaceDetailData, int DeviceInterfaceDetailDataSize, ref int RequiredSize, IntPtr DeviceInfoData);
 
     }

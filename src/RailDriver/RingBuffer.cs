@@ -128,7 +128,7 @@ using System.Threading;
 
 namespace RailDriver
 {
-    internal class RingBuffer
+    internal sealed class RingBuffer
     {
         private readonly int elementCount;
         private readonly int elementSize;
@@ -140,13 +140,13 @@ namespace RailDriver
 
         private void Lock()
         {
-            Monitor.Enter(ringBuffer);
+            Monitor.Enter(elementCount);
             return;
         }
 
         private void Unlock()
         {
-            Monitor.Exit(ringBuffer);
+            Monitor.Exit(elementCount);
             return;
         }
 
@@ -157,12 +157,11 @@ namespace RailDriver
         /// <param name="elementSize"></param>
         public RingBuffer(int elements, int elementSize)
         {
-
             elementCount = elements;
             this.elementSize = elementSize;
             ringBuffer = new byte[elementCount * this.elementSize];
-            Monitor.Enter(ringBuffer);
-            Monitor.Exit(ringBuffer);
+            Monitor.Enter(elementCount);
+            Monitor.Exit(elementCount);
         }
 
         /// <summary>

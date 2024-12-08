@@ -4,11 +4,12 @@ using System.Windows.Forms;
 
 namespace RailDriver.Sample
 {
-    public partial class Form1 : Form, IDataHandler, IErrorHandler
+#pragma warning disable CA1303 // Do not pass literals as localized parameters
+    internal sealed partial class Form1 : Form, IDataHandler, IErrorHandler
     {
         private IList<PIEDevice> devices;
-        private int[] cbotodevice = null; //for each item in the CboDevice list maps this index to the device index.  Max devices =100 
-        private byte[] wData = null; //write data buffer
+        private int[] cbotodevice; //for each item in the CboDevice list maps this index to the device index.  Max devices =100 
+        private byte[] wData; //write data buffer
         private int selecteddevice = -1; //set to the index of CboDevice
 
         //for thread-safe way to call a Windows Forms control
@@ -122,12 +123,11 @@ namespace RailDriver.Sample
             //check the sourceDevice and make sure it is the same device as selected in CboDevice   
             if (sourceDevice == devices[selecteddevice])
             {
-
                 //write raw data to listbox1
-                string output = "Callback: " + sourceDevice.Pid + ", ID: " + selecteddevice.ToString() + ", data=";
+                string output = $"Callback: {sourceDevice.Pid}, ID: {selecteddevice}, data=";
                 for (int i = 0; i < sourceDevice.ReadLength; i++)
                 {
-                    output = output + data[i].ToString() + "  ";
+                    output += $"{data[i]}  ";
                 }
                 //Reverser = rdata[1]
                 //Throttle = rdata[2]
@@ -145,7 +145,7 @@ namespace RailDriver.Sample
         //error callback
         public void HandleHidError(PIEDevice sourceDevice, int error)
         {
-            SetToolStrip("Error: " + error.ToString());
+            SetToolStrip($"Error: {error}");
         }
 
         //for threadsafe setting of Windows Forms control
@@ -197,18 +197,22 @@ namespace RailDriver.Sample
                 }
 
                 wData[1] = 134;
-                wData[2] = byte.Parse(textBox1.Text);
-                wData[3] = byte.Parse(textBox2.Text);
-                wData[4] = byte.Parse(textBox3.Text);
-                int result = 404;
-                while (result == 404) { result = devices[selecteddevice].WriteData(wData); }
-                if (result != 0)
+                if (byte.TryParse(textBox1.Text, out wData[2]) && byte.TryParse(textBox2.Text, out wData[3]) && byte.TryParse(textBox3.Text, out wData[4]))
                 {
-                    toolStripStatusLabel1.Text = "Write Fail: " + result;
+                    int result = 404;
+                    while (result == 404) { result = devices[selecteddevice].WriteData(wData); }
+                    if (result != 0)
+                    {
+                        toolStripStatusLabel1.Text = "Write Fail: " + result;
+                    }
+                    else
+                    {
+                        toolStripStatusLabel1.Text = "Write Success - Write to Display";
+                    }
                 }
-                else
+                else 
                 {
-                    toolStripStatusLabel1.Text = "Write Success - Write to Display";
+                    toolStripStatusLabel1.Text = "Input Error - data out of valid range";
                 }
             }
         }
@@ -277,5 +281,6 @@ namespace RailDriver.Sample
         {
             System.Media.SystemSounds.Beep.Play();
         }
+#pragma warning restore CA1303 // Do not pass literals as localized parameters
     }
 }

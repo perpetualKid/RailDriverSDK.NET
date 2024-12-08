@@ -61,22 +61,32 @@ namespace RailDriver
         // API functions, listed alphabetically
         // ******************************************************************************
 
-        [DllImport("hid.dll")]
+        [DllImport("hid.dll", CharSet = CharSet.Unicode)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern int HidD_GetAttributes(SafeFileHandle HidDeviceObject, ref HIDD_ATTRIBUTES Attributes); //type changed by Onur for 64-bit compatability
 
-        [DllImport("hid.dll")]
+        [DllImport("hid.dll", CharSet = CharSet.Unicode)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern void HidD_GetHidGuid(ref Guid HidGuid);
 
-        [DllImport("hid.dll", CharSet = CharSet.Auto)]
+        [DllImport("hid.dll", CharSet = CharSet.Unicode)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+#pragma warning disable CA1838 // Avoid 'StringBuilder' parameters for P/Invokes
         public static extern int HidD_GetManufacturerString(SafeFileHandle HidDeviceObject, StringBuilder buffer, int StringSize);
+#pragma warning restore CA1838 // Avoid 'StringBuilder' parameters for P/Invokes
 
-        [DllImport("hid.dll")]
+        [DllImport("hid.dll", CharSet = CharSet.Unicode)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern bool HidD_GetPreparsedData(SafeFileHandle HidDeviceObject, ref IntPtr PreparsedData); //type changed by Onur for 64-bit compatability
 
-        [DllImport("hid.dll", CharSet = CharSet.Auto)]
+        [DllImport("hid.dll", CharSet = CharSet.Unicode)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+#pragma warning disable CA1838 // Avoid 'StringBuilder' parameters for P/Invokes
         public static extern int HidD_GetProductString(SafeFileHandle HidDeviceObject, StringBuilder buffer, int StringSize);
+#pragma warning restore CA1838 // Avoid 'StringBuilder' parameters for P/Invokes
 
-        [DllImport("hid.dll")]
+        [DllImport("hid.dll", CharSet = CharSet.Unicode)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern int HidP_GetCaps(IntPtr PreparsedData, ref HIDP_CAPS Capabilities);
     }
 

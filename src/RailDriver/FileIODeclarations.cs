@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace RailDriver
 {
-    internal class FileIOApiDeclarations
+    internal static class FileIOApiDeclarations
     {
         // API declarations relating to file I/O.
 
@@ -31,6 +31,7 @@ namespace RailDriver
         // ******************************************************************************
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern IntPtr CreateFile(string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, int dwCreationDisposition, uint dwFlagsAndAttributes, int hTemplateFile); 
 
     }

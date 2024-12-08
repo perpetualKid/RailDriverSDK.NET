@@ -8,6 +8,8 @@
 	<PropertyGroup>
 		<TreatWarningsAsErrors>false</TreatWarningsAsErrors>
 		<EnableNETAnalyzers>true</EnableNETAnalyzers>
+		<AnalysisLevel>latest</AnalysisLevel>
+		<AnalysisMode>AllEnabledByDefault</AnalysisMode>
 	</PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0">

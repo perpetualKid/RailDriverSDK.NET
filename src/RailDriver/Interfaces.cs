@@ -10,8 +10,8 @@
         /// </summary>
         /// <param name="data"></param>
         /// <param name="sourceDevice"></param>
-        /// <param name="error"></param>
-        void HandleHidData(byte[] data, PIEDevice sourceDevice, int error);
+        /// <param name="errorCode"></param>
+        void HandleHidData(byte[] data, PIEDevice sourceDevice, int errorCode);
     }
 
     /// <summary>
@@ -23,8 +23,8 @@
         /// Handle Error Data
         /// </summary>
         /// <param name="sourceDevices"></param>
-        /// <param name="error"></param>
-        void HandleHidError(PIEDevice sourceDevices, int error);
+        /// <param name="errorCode"></param>
+        void HandleHidError(PIEDevice sourceDevices, int errorCode);
     }
 
 }

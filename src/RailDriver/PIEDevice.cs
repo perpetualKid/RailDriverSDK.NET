@@ -13,21 +13,22 @@ namespace RailDriver
     /// <summary>
     /// PIE Device
     /// </summary>
-    public class PIEDevice
+    public class PIEDevice: IDisposable
     {
-        private bool connected = false;
+        private bool connected;
         private RingBuffer writeRing;
         private RingBuffer readRing;
         private SafeFileHandle readFileHandle;
         private SafeFileHandle writeFileHandle;
-        private IDataHandler registeredDataHandler = null;
-        private IErrorHandler registeredErrorHandler = null;
+        private IDataHandler registeredDataHandler;
+        private IErrorHandler registeredErrorHandler;
 
-        private int errCodeReadError = 0;
-        private int errCodeWriteError = 0;
+        private int errCodeReadError;
+        private int errCodeWriteError;
         private readonly AsyncManualResetEvent writeEvent = new AsyncManualResetEvent();
         private readonly AsyncManualResetEvent readEvent = new AsyncManualResetEvent();
         private CancellationTokenSource cts;
+        private bool disposedValue;
 
         /// <summary>
         /// Device Path
@@ -143,7 +144,7 @@ namespace RailDriver
                 errCodeReadError = 0;
                 errCodeWriteError = 0;
 
-                await Task.Delay(25);
+                await Task.Delay(25).ConfigureAwait(false);
             }
         }
 
@@ -478,6 +479,9 @@ namespace RailDriver
         /// <returns></returns>
         public int WriteData(byte[] buffer)
         {
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+
             if (WriteLength == 0)
                 return 402;
             if (!connected)
@@ -551,49 +555,72 @@ namespace RailDriver
                 IntPtr fileH = FileIOApiDeclarations.CreateFile(devicePath, FileIOApiDeclarations.GENERIC_WRITE,
                     FileIOApiDeclarations.FILE_SHARE_READ | FileIOApiDeclarations.FILE_SHARE_WRITE,
                     IntPtr.Zero, FileIOApiDeclarations.OPEN_EXISTING, 0, 0);
-                SafeFileHandle fileHandle = new SafeFileHandle(fileH, true);
-                if (fileHandle.IsInvalid)
+                using (SafeFileHandle fileHandle = new SafeFileHandle(fileH, true))
                 {
-                    // Bad handle, try next path
-                    continue;
-                }
-                try
-                {
-                    HidApiDeclarations.HIDD_ATTRIBUTES hidAttributes = new HidApiDeclarations.HIDD_ATTRIBUTES();
-                    hidAttributes.Size = Marshal.SizeOf(hidAttributes);
-                    if (0 != HidApiDeclarations.HidD_GetAttributes(fileHandle, ref hidAttributes) && hidAttributes.VendorID == vid)
+                    if (fileHandle.IsInvalid)
                     {
-                        // Good attributes and right vid, try to get caps
-                        IntPtr pPerparsedData = new IntPtr();
-                        if (HidApiDeclarations.HidD_GetPreparsedData(fileHandle, ref pPerparsedData))
+                        // Bad handle, try next path
+                        continue;
+                    }
+#pragma warning disable CA1031 // Do not catch general exception types
+                    try
+                    {
+                        HidApiDeclarations.HIDD_ATTRIBUTES hidAttributes = new HidApiDeclarations.HIDD_ATTRIBUTES();
+                        hidAttributes.Size = Marshal.SizeOf(hidAttributes);
+                        if (0 != HidApiDeclarations.HidD_GetAttributes(fileHandle, ref hidAttributes) && hidAttributes.VendorID == vid)
                         {
-                            HidApiDeclarations.HIDP_CAPS hidCaps = new HidApiDeclarations.HIDP_CAPS();
-                            if (0 != HidApiDeclarations.HidP_GetCaps(pPerparsedData, ref hidCaps))
+                            // Good attributes and right vid, try to get caps
+                            IntPtr pPerparsedData = new IntPtr();
+                            if (HidApiDeclarations.HidD_GetPreparsedData(fileHandle, ref pPerparsedData))
                             {
-                                // Got Capabilities, add device to list
-                                char[] Mstring = new char[128];
-                                StringBuilder manufacturer = new StringBuilder();
-                                StringBuilder productName = new StringBuilder();
-                                _ = HidApiDeclarations.HidD_GetManufacturerString(fileHandle, manufacturer, 128);
-                                _ = HidApiDeclarations.HidD_GetProductString(fileHandle, productName, 128);
+                                HidApiDeclarations.HIDP_CAPS hidCaps = new HidApiDeclarations.HIDP_CAPS();
+                                if (0 != HidApiDeclarations.HidP_GetCaps(pPerparsedData, ref hidCaps))
+                                {
+                                    // Got Capabilities, add device to list
+                                    StringBuilder manufacturer = new StringBuilder();
+                                    StringBuilder productName = new StringBuilder();
+                                    _ = HidApiDeclarations.HidD_GetManufacturerString(fileHandle, manufacturer, 128);
+                                    _ = HidApiDeclarations.HidD_GetProductString(fileHandle, productName, 128);
 
-                                devices.Add(new PIEDevice(devicePath, hidAttributes.VendorID, hidAttributes.ProductID, hidAttributes.VersionNumber, hidCaps.Usage,
-                                    hidCaps.UsagePage, hidCaps.InputReportByteLength, hidCaps.OutputReportByteLength, manufacturer.ToString(), productName.ToString()));
+                                    devices.Add(new PIEDevice(devicePath, hidAttributes.VendorID, hidAttributes.ProductID, hidAttributes.VersionNumber, hidCaps.Usage,
+                                        hidCaps.UsagePage, hidCaps.InputReportByteLength, hidCaps.OutputReportByteLength, manufacturer.ToString(), productName.ToString()));
+                                }
+
                             }
-
                         }
                     }
-                }
-                catch (Exception)
-                {
-                    continue;
-                }
-                finally
-                {
-                    fileHandle.Close();
+                    catch (Exception) { }
+#pragma warning restore CA1031 // Do not catch general exception types
+                    finally
+                    {
+                        fileHandle.Close();
+                    }
                 }
             }
             return devices;
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    if (cts != null && !cts.IsCancellationRequested)
+                        cts.Cancel();
+                    cts?.Dispose();
+                    readFileHandle?.Dispose();
+                    writeFileHandle?.Dispose();
+                }
+                disposedValue = true;
+            }
+        }
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }
