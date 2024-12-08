@@ -600,6 +600,9 @@ namespace RailDriver
             return devices;
         }
 
+        /// <summary>
+        /// Dispose pattern implementation
+        /// </summary>
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -616,6 +619,9 @@ namespace RailDriver
             }
         }
 
+        /// <summary>
+        /// Dispose pattern implementation
+        /// </summary>
         public void Dispose()
         {
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
