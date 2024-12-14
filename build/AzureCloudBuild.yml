@@ -32,18 +32,11 @@ steps:
     restoreSolution: '$(solution)'
 
 - task: DotNetCoreCLI@2
-  displayName: Prepare DotNet tool install
-  inputs:
-    command: 'custom'
-    custom: 'new'
-    arguments: 'tool-manifest'
-
-- task: DotNetCoreCLI@2  
-  displayName: Install NBGV tool
+  displayName: Restore dotnet tools
   inputs:
     command: custom
     custom: tool
-    arguments: install --tool-path . nbgv
+    arguments: 'restore --tool-manifest .\.config\dotnet-tools.json'
 
 #need to run in the correct folder as version.json is not in root
 - script: .\nbgv cloud -a
