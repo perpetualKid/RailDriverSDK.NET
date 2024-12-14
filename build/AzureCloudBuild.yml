@@ -32,19 +32,22 @@ steps:
     restoreSolution: '$(solution)'
 
 - task: DotNetCoreCLI@2
-  displayName: Restore dotnet tools
+  displayName: Prepare DotNet tool install
+  inputs:
+    command: 'custom'
+    custom: 'new'
+    arguments: 'tool-manifest'
+
+- task: DotNetCoreCLI@2  
+  displayName: Install NBGV tool
   inputs:
     command: custom
     custom: tool
-    arguments: 'restore --tool-manifest .\.config\dotnet-tools.json'
+    arguments: install --tool-path . nbgv
 
-- task: DotNetCoreCLI@2
-  displayName: Set nbgv Variables
-  inputs:
-    command: 'custom'
-    custom: 'tool'
-    arguments: 'run nbgv cloud -a'
-    workingDirectory: '.\source'
+#need to run in the correct folder as version.json is not in root
+- script: .\nbgv cloud -a
+  displayName: Set NBGV Variables
 
 - task: Bash@3
   displayName: List all Environment Variables
