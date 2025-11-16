@@ -1,5 +1,4 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <Description>Managed .Net SDK Library for PIE RailDriver USB HID Desktop Train Cab Controller. 
