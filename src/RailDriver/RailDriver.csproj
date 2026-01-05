@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <Description>Managed .Net SDK Library for PIE RailDriver USB HID Desktop Train Cab Controller. 
-.NET Standard 2.0 implementation supporting a wide range of .NET platforms including .NET Framework 4.6.1 to 4.8, .NET Core &gt;=2.0 and .NET 5 and beyond. 
+.NET Standard 2.0 implementation supporting a wide range of .NET platforms including .NET Framework 4.6.2 to 4.8, .NET Core &gt;=2.0 and .NET 5 and beyond. 
 Implementing 32bit and 64bit support (AnyCPU) in a single package.</Description>
     <Authors>perpetualKid</Authors>
     <PackageId>RailDriver</PackageId>

@@ -16,7 +16,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\RailDriver\RailDriver.csproj" />
-    <PackageReference Include="System.Resources.Extensions" Version="10.0.0" />
+    <PackageReference Include="System.Resources.Extensions" Version="10.0.1" />
   </ItemGroup>
   <ItemGroup>
     <Compile Update="Form1.Designer.cs">
