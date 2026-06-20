@@ -6,20 +6,10 @@ using Microsoft.Win32.SafeHandles;
 
 namespace RailDriver
 {
-    internal sealed class HidApiDeclarations
+    internal static class HidApiDeclarations
     {
 
         // API Declarations for communicating with HID-class devices. 
-
-        // ******************************************************************************
-        // API constants
-        // ******************************************************************************
-
-        // from hidpi.h
-        // Typedef enum defines a set of integer constants for HidP_Report_Type
-        public const short HidP_Input = 0;
-        public const short HidP_Output = 1;
-        public const short HidP_Feature = 2;
 
         // ******************************************************************************
         // Structures and classes for API calls, listed alphabetically

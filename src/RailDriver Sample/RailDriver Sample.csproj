@@ -7,6 +7,7 @@
     <IsPackable>false</IsPackable>
     <ApplicationIcon>RailDriver.ico</ApplicationIcon>
     <GenerateResourceUsePreserializedResources>true</GenerateResourceUsePreserializedResources>
+    <NoWarn>$(NoWarn);CA1303</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|AnyCPU'">
     <NoWarn>1701;1702;1591</NoWarn>
@@ -16,7 +17,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\RailDriver\RailDriver.csproj" />
-    <PackageReference Include="System.Resources.Extensions" Version="10.0.1" />
+    <PackageReference Include="System.Resources.Extensions" Version="10.0.9" />
   </ItemGroup>
   <ItemGroup>
     <Compile Update="Form1.Designer.cs">

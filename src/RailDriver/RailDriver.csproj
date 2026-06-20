@@ -8,10 +8,14 @@ Implementing 32bit and 64bit support (AnyCPU) in a single package.</Description>
     <PackageId>RailDriver</PackageId>
     <Product>RailDriver SDK</Product>
     <PackageIcon>RailDriver.png</PackageIcon>
-    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
     <None Include="..\RailDriver.png">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
+    <None Include="README.md">
       <Pack>True</Pack>
       <PackagePath></PackagePath>
     </None>

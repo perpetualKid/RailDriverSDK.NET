@@ -4,13 +4,19 @@ using System.Windows.Forms;
 
 namespace RailDriver.Sample
 {
-#pragma warning disable CA1303 // Do not pass literals as localized parameters
     internal sealed partial class Form1 : Form, IDataHandler, IErrorHandler
     {
+        private const int Success = 0;
+        private const int WriteBufferFull = 404;
+        private const int MaxWriteRetries = 10;
+        private const int MaxDevices = 128;
+        private const int RailDriverHidUsagePage = 0x0c;
+        private const int RailDriverProductId = 210;
+
         private IList<PIEDevice> devices;
-        private int[] cbotodevice; //for each item in the CboDevice list maps this index to the device index.  Max devices =100 
-        private byte[] wData; //write data buffer
-        private int selecteddevice = -1; //set to the index of CboDevice
+        private int[] comboToDevice; //maps each CboDevices entry to the enumerated device index
+        private byte[] writeData; //write data buffer
+        private int selectedDevice = -1; //index into CboDevices
 
         //for thread-safe way to call a Windows Forms control
         // This delegate enables asynchronous calls for setting
@@ -31,7 +37,7 @@ namespace RailDriver.Sample
         private void BtnEnumerate_Click(object sender, EventArgs e)
         {
             CboDevices.Items.Clear();
-            cbotodevice = new int[128]; //128=max # of devices
+            comboToDevice = new int[MaxDevices];
             //enumerate and setupinterfaces for all devices
             devices = PIEDevice.EnumeratePIE();
             if (devices.Count == 0)
@@ -49,19 +55,19 @@ namespace RailDriver.Sample
                     //HID Usage = devices[i].HidUsage);
                     //HID Usage Page = devices[i].HidUsagePage);
                     //HID Version = devices[i].Version);
-                    if (devices[i].HidUsagePage == 0xc)
+                    if (devices[i].HidUsagePage == RailDriverHidUsagePage)
                     {
                         switch (devices[i].Pid)
                         {
-                            case 210:
+                            case RailDriverProductId:
                                 CboDevices.Items.Add("RailDriver (" + devices[i].Pid + "), ID: " + i);
-                                cbotodevice[cbocount] = i;
+                                comboToDevice[cbocount] = i;
                                 cbocount++;
                                 break;
 
                             default:
                                 CboDevices.Items.Add("Unknown Device (" + devices[i].Pid + "), ID: " + i);
-                                cbotodevice[cbocount] = i;
+                                comboToDevice[cbocount] = i;
                                 cbocount++;
                                 break;
                         }
@@ -72,20 +78,22 @@ namespace RailDriver.Sample
             if (CboDevices.Items.Count > 0)
             {
                 CboDevices.SelectedIndex = 0;
-                selecteddevice = cbotodevice[CboDevices.SelectedIndex];
-                wData = new byte[devices[selecteddevice].WriteLength];//go ahead and setup for write
+                selectedDevice = comboToDevice[CboDevices.SelectedIndex];
+                writeData = new byte[devices[selectedDevice].WriteLength];//go ahead and setup for write
             }
 
         }
 
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
+            if (devices == null || comboToDevice == null)
+                return;
+
             //closeinterfaces on all devices
             for (int i = 0; i < CboDevices.Items.Count; i++)
             {
-                devices[cbotodevice[i]].CloseInterface();
+                devices[comboToDevice[i]].CloseInterface();
             }
-            System.Environment.Exit(0);
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -95,8 +103,8 @@ namespace RailDriver.Sample
 
         private void CboDevices_SelectedIndexChanged(object sender, EventArgs e)
         {
-            selecteddevice = cbotodevice[CboDevices.SelectedIndex];
-            wData = new byte[devices[selecteddevice].WriteLength];//size write array 
+            selectedDevice = comboToDevice[CboDevices.SelectedIndex];
+            writeData = new byte[devices[selectedDevice].WriteLength];//size write array 
         }
 
         private void BtnCallback_Click(object sender, EventArgs e)
@@ -107,11 +115,11 @@ namespace RailDriver.Sample
             {
                 for (int i = 0; i < CboDevices.Items.Count; i++)
                 {
-                    //use the cbotodevice array which contains the mapping of the devices in the CboDevices to the actual device IDs
-                    devices[cbotodevice[i]].SetErrorCallback(this);
-                    devices[cbotodevice[i]].SetDataCallback(this);
-                    devices[cbotodevice[i]].SuppressDuplicateReports = true;
-                    devices[cbotodevice[i]].CallNever = false;
+                    //use the comboToDevice array which maps CboDevices entries to actual device IDs
+                    devices[comboToDevice[i]].SetErrorCallback(this);
+                    devices[comboToDevice[i]].SetDataCallback(this);
+                    devices[comboToDevice[i]].SuppressDuplicateReports = true;
+                    devices[comboToDevice[i]].CallNever = false;
                 }
 
             }
@@ -121,10 +129,10 @@ namespace RailDriver.Sample
         public void HandleHidData(byte[] data, PIEDevice sourceDevice, int error)
         {
             //check the sourceDevice and make sure it is the same device as selected in CboDevice   
-            if (sourceDevice == devices[selecteddevice])
+            if (sourceDevice == devices[selectedDevice])
             {
                 //write raw data to listbox1
-                string output = $"Callback: {sourceDevice.Pid}, ID: {selecteddevice}, data=";
+                string output = $"Callback: {sourceDevice.Pid}, ID: {selectedDevice}, data=";
                 for (int i = 0; i < sourceDevice.ReadLength; i++)
                 {
                     output += $"{data[i]}  ";
@@ -188,27 +196,15 @@ namespace RailDriver.Sample
 
         private void BtnWriteDisplay_Click(object sender, EventArgs e)
         {
-            if (CboDevices.SelectedIndex != -1)
+            if (CanWriteToSelectedDevice())
             {
                 //write to the LED Segments
-                for (int j = 0; j < devices[selecteddevice].WriteLength; j++)
-                {
-                    wData[j] = 0;
-                }
+                ClearWriteData();
 
-                wData[1] = 134;
-                if (byte.TryParse(textBox1.Text, out wData[2]) && byte.TryParse(textBox2.Text, out wData[3]) && byte.TryParse(textBox3.Text, out wData[4]))
+                writeData[1] = 134;
+                if (byte.TryParse(textBox1.Text, out writeData[2]) && byte.TryParse(textBox2.Text, out writeData[3]) && byte.TryParse(textBox3.Text, out writeData[4]))
                 {
-                    int result = 404;
-                    while (result == 404) { result = devices[selecteddevice].WriteData(wData); }
-                    if (result != 0)
-                    {
-                        toolStripStatusLabel1.Text = "Write Fail: " + result;
-                    }
-                    else
-                    {
-                        toolStripStatusLabel1.Text = "Write Success - Write to Display";
-                    }
+                    SetWriteStatus(WriteSelectedDevice(), "Write Success - Write to Display");
                 }
                 else 
                 {
@@ -219,7 +215,7 @@ namespace RailDriver.Sample
 
         private void BtnSpeakerOn_Click(object sender, EventArgs e)
         {
-            if (CboDevices.SelectedIndex != -1)
+            if (CanWriteToSelectedDevice())
             {
                 //turn speaker on
                 //the following will turn on the RailDriver speaker and
@@ -227,23 +223,13 @@ namespace RailDriver.Sample
                 //hear only the RailDriver speaker disconnect the Speaker
                 //Pass Thru in the back of the unit.  Make sure the RailDriver
                 //power and speaker are plugged in.
-                for (int j = 0; j < devices[selecteddevice].WriteLength; j++)
-                {
-                    wData[j] = 0;
-                }
+                ClearWriteData();
 
-                wData[1] = 133;
-                wData[7] = 1;
+                writeData[1] = 133;
+                writeData[7] = 1;
 
-                int result = 404;
-                while (result == 404) { result = devices[selecteddevice].WriteData(wData); }
-                if (result != 0)
+                if (SetWriteStatus(WriteSelectedDevice(), "Write Success - Speaker On"))
                 {
-                    toolStripStatusLabel1.Text = "Write Fail: " + result;
-                }
-                else
-                {
-                    toolStripStatusLabel1.Text = "Write Success - Speaker On";
                     timer1.Enabled = true;
                 }
             }
@@ -251,36 +237,58 @@ namespace RailDriver.Sample
 
         private void BtnSpeakerOff_Click(object sender, EventArgs e)
         {
-            if (CboDevices.SelectedIndex != -1)
+            if (CanWriteToSelectedDevice())
             {
                 //turn speaker off
 
-                for (int j = 0; j < devices[selecteddevice].WriteLength; j++)
-                {
-                    wData[j] = 0;
-                }
+                ClearWriteData();
 
-                wData[1] = 133;
-                wData[7] = 0;
+                writeData[1] = 133;
+                writeData[7] = 0;
 
-                int result = 404;
-                while (result == 404) { result = devices[selecteddevice].WriteData(wData); }
-                if (result != 0)
+                if (SetWriteStatus(WriteSelectedDevice(), "Write Success - Speaker Off"))
                 {
-                    toolStripStatusLabel1.Text = "Write Fail: " + result;
-                }
-                else
-                {
-                    toolStripStatusLabel1.Text = "Write Success - Speaker Off";
                     timer1.Enabled = false;
                 }
             }
+        }
+
+        private bool CanWriteToSelectedDevice()
+        {
+            return CboDevices.SelectedIndex != -1 && devices != null && writeData != null;
+        }
+
+        private void ClearWriteData()
+        {
+            Array.Clear(writeData, 0, writeData.Length);
+        }
+
+        private int WriteSelectedDevice()
+        {
+            int result = WriteBufferFull;
+            for (int retry = 0; retry < MaxWriteRetries && result == WriteBufferFull; retry++)
+            {
+                result = devices[selectedDevice].WriteData(writeData);
+            }
+
+            return result;
+        }
+
+        private bool SetWriteStatus(int result, string successMessage)
+        {
+            if (result != Success)
+            {
+                toolStripStatusLabel1.Text = "Write Fail: " + result;
+                return false;
+            }
+
+            toolStripStatusLabel1.Text = successMessage;
+            return true;
         }
 
         private void Timer1_Tick(object sender, EventArgs e)
         {
             System.Media.SystemSounds.Beep.Play();
         }
-#pragma warning restore CA1303 // Do not pass literals as localized parameters
     }
 }

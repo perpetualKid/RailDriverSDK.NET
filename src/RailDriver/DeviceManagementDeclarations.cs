@@ -3,25 +3,14 @@ using System.Runtime.InteropServices;
 
 namespace RailDriver
 {
-    internal sealed class DeviceManagementApiDeclarations
+    internal static class DeviceManagementApiDeclarations
     {
 
-        // API declarations relating to device management (SetupDixxx and
-        // RegisterDeviceNotification functions).
+        // API declarations relating to device management (SetupDixxx functions).
 
         // ******************************************************************************
         // API constants
         // ******************************************************************************
-
-        // from dbt.h
-        public const int DBT_DEVICEARRIVAL = 0x8000;
-        public const int DBT_DEVICEREMOVECOMPLETE = 0x8004;
-        public const int DBT_DEVTYP_DEVICEINTERFACE = 5;
-        public const int DBT_DEVTYP_HANDLE = 6;
-        public const int DEVICE_NOTIFY_ALL_INTERFACE_CLASSES = 4;
-        public const int DEVICE_NOTIFY_SERVICE_HANDLE = 1;
-        public const int DEVICE_NOTIFY_WINDOW_HANDLE = 0;
-        public const int WM_DEVICECHANGE = 0x219;
 
         // from setupapi.h
         public const short DIGCF_PRESENT = 0x00000002;
